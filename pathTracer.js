@@ -23,6 +23,11 @@ let rtQuad, finalQuad, renderTarget, mesh;
 let samples = 0;
 let outputContainer;
 
+const windowHalfX = window.innerWidth / 2;
+const windowHalfY = window.innerHeight / 2;
+const windowY = window.innerHeight;
+
+
 init();
 render();
 
@@ -384,6 +389,14 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
+
+
+		////////////////////
+		// Cursor color inspector
+		const read = new Float32Array( 4 );
+		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale , 1, 1, read );
+		cursor.innerHTML = Math.round(read[0]*100) + " %";
+
 	} else {
 
 		resetSamples();
@@ -397,4 +410,37 @@ function render() {
 }
 
 
-console.log("hello world");
+// Cursor
+// let circle = document.getElementById('circle');
+
+const cursor = document.querySelector('.cursor');
+
+let mouseX = 0;
+let mouseY = 0;
+
+let cursorX = 0;
+let cursorY = 0;
+
+let speed = 1.0; // change to increase the ease
+
+function animate() {
+    let distX = mouseX - cursorX;
+    let distY = mouseY - cursorY;
+
+    cursorX = cursorX + (distX * speed);
+    cursorY = cursorY + (distY * speed);
+
+    cursor.style.left = cursorX + 'px';
+    cursor.style.top = cursorY + 'px';
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+document.addEventListener('mousemove', (event) => {
+    mouseX = event.pageX;
+    mouseY = event.pageY;
+});
+
+

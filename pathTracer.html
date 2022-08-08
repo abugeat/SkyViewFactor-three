@@ -15,6 +15,7 @@
         canvas {
             width: 100%;
             height: 100%;
+            cursor: crosshair;
         }
 
         #output {
@@ -38,6 +39,24 @@
             text-align: center;
             padding: 5px 0;
         }
+
+        .cursor {
+            width: 4rem;
+            height: 2rem;
+            background: rgba(255, 0, 0, 0.5);
+            margin: 0.3rem;
+            border-radius: 2rem;
+            position: absolute;
+            color: black;
+            display: flex;
+            justify-content: center;
+            align-items:center;
+            /* vertical-align: middle; */
+            top: 0;
+            left: 0;
+            transform: translateX(0.25rem) translateY(0.25rem);
+            /* mix-blend-mode: difference; */
+        }
     </style>
 </head>
 <body>
@@ -45,6 +64,7 @@
 		Sky View Factor shader implemented using BVH intersections on the GPU.
 	</div>
 	<div id="output"></div>
+    <div class="cursor"></div>
     <script type="module" src="./bundle.js"></script>
 </body>
 </html>
