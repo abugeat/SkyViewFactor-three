@@ -12,20 +12,15 @@ import {
 
 const params = {
 	enableRaytracing: true,
-	smoothImageScaling: true,
-	resolutionScale: 0.5 / window.devicePixelRatio,
-	bounces: 3,
+	smoothImageScaling: false,
+	resolutionScale: 1.0 / window.devicePixelRatio,
 	accumulate: true,
 };
 
-let renderer, camera, scene, gui, stats;
+let renderer, camera, scene, gui, controls, stats;
 let rtQuad, finalQuad, renderTarget, mesh;
 let samples = 0;
 let outputContainer;
-
-const windowHalfX = window.innerWidth / 2;
-const windowHalfY = window.innerHeight / 2;
-const windowY = window.innerHeight;
 
 
 init();
@@ -49,6 +44,8 @@ function init() {
 	// scene setup
 	scene = new THREE.Scene();
 
+	
+
 	const axesHelper = new THREE.AxesHelper( 100 );
 	scene.add( axesHelper );
 
@@ -59,9 +56,18 @@ function init() {
 
 	// camera setup
 	camera = new THREE.PerspectiveCamera( 55, window.innerWidth / window.innerHeight, 0.1, 50 );
-	camera.position.set( 0, 20, 0 );
-	camera.far = 55;
+	camera.position.set( 5, 7, -5 );
+	camera.far = 100;
 	camera.updateProjectionMatrix();
+
+	controls = new OrbitControls( camera, renderer.domElement );
+	controls.target.set( 25, 0, -25 );
+	controls.update();
+	controls.addEventListener( 'change', () => {
+
+		resetSamples();
+
+	} );
 
 	// stats setup
 	// stats = new Stats();
@@ -71,9 +77,9 @@ function init() {
 	// tuned from Pixel 3 device that reports as highp but seemingly has low precision.
 	const rtMaterial = new THREE.ShaderMaterial( {
 
-		defines: {
-			BOUNCES: 5,
-		},
+		// defines: {
+		// 	BOUNCES: 5,
+		// },
 
 		uniforms: {
 			bvh: { value: new MeshBVHUniformStruct() },
@@ -257,7 +263,7 @@ function init() {
 
 		const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
 		// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
-		merged.translate( 0, - 0.5, 0 );
+		// merged.translate( 0, - 0.5, 0 );
 		// merged.rotateX(-Math.PI / 2);
 
 		mesh = new THREE.Mesh( merged, new THREE.MeshStandardMaterial() );
@@ -268,7 +274,6 @@ function init() {
 		rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
 	} );
-
 
 	renderTarget = new THREE.WebGLRenderTarget( 1, 1, {
 
@@ -283,26 +288,20 @@ function init() {
 
 	} ) );
 
-	const controls = new OrbitControls( camera, renderer.domElement );
-	controls.target.set( 10, 0, 10 );
-	controls.addEventListener( 'change', () => {
 
-		resetSamples();
-
-	} );
 
 	gui = new GUI();
 	gui.add( params, 'enableRaytracing' ).name( 'enable' );
 	gui.add( params, 'accumulate' );
 	gui.add( params, 'smoothImageScaling' );
 	gui.add( params, 'resolutionScale', 0.1, 1, 0.01 ).onChange( resize );
-	gui.add( params, 'bounces', 1, 10, 1 ).onChange( v => {
+	// gui.add( params, 'bounces', 1, 10, 1 ).onChange( v => {
 
-		rtMaterial.defines.BOUNCES = parseInt( v );
-		rtMaterial.needsUpdate = true;
-		resetSamples();
+	// 	rtMaterial.defines.BOUNCES = parseInt( v );
+	// 	rtMaterial.needsUpdate = true;
+	// 	resetSamples();
 
-	} );
+	// } );
 	gui.open();
 
 	window.addEventListener( 'resize', resize, false );
@@ -389,8 +388,6 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
-
-
 		////////////////////
 		// Cursor color inspector
 		const read = new Float32Array( 4 );
@@ -401,6 +398,7 @@ function render() {
 
 		resetSamples();
 		camera.clearViewOffset();
+		
 		renderer.render( scene, camera );
 
 	}
