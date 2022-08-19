@@ -56,12 +56,14 @@ function init() {
 
 	// camera setup
 	camera = new THREE.PerspectiveCamera( 55, window.innerWidth / window.innerHeight, 0.1, 50 );
-	camera.position.set( 5, 7, -5 );
-	camera.far = 100;
+	// camera.position.set( 5, 7, -5 );
+	camera.position.set( 0, 20, 0 );
+	camera.far = 100000;
 	camera.updateProjectionMatrix();
 
 	controls = new OrbitControls( camera, renderer.domElement );
-	controls.target.set( 25, 0, -25 );
+	// controls.target.set( 25, 0, -25 );
+	controls.target.set( 0, 0, 0 );
 	controls.update();
 	controls.addEventListener( 'change', () => {
 
@@ -223,7 +225,7 @@ function init() {
 					// error as values increase.
 					vec3 point = rayOrigin + rayDirection * dist;
 					vec3 absPoint = abs( point );
-					float maxPoint = max( absPoint.x, max( absPoint.y, absPoint.z ) );
+					float maxPoint = max( absPoint.x, max( absPoint.y, absPoint.z ) ) + 1.0;
 					rayOrigin = point + faceNormal * ( maxPoint ) * RAY_OFFSET;
 
 					// VIEW FACTOR RAY DIRECTION GENERATION
@@ -244,7 +246,7 @@ function init() {
 	rtMaterial.depthWrite = false;
 
 	// load mesh and set up material BVH attributes
-	new GLTFLoader().load( './cordoba.glb', gltf => {
+	new GLTFLoader().load( './torino.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb
 
 		let dragonMesh;
 		gltf.scene.traverse( c => {
@@ -252,21 +254,22 @@ function init() {
 			if ( c.isMesh ) { //&& c.name === 'Dragon' 
 
 				dragonMesh = c;
-				c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
+				// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
 
 			}
 
 		} );
 
-		const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
-		planeGeom.rotateX( - Math.PI / 2 );
+		// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
+		// planeGeom.rotateX( - Math.PI / 2 );
 
-		const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
+		// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
 		// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
 		// merged.translate( 0, - 0.5, 0 );
 		// merged.rotateX(-Math.PI / 2);
 
-		mesh = new THREE.Mesh( merged, new THREE.MeshStandardMaterial() );
+		mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+		// mesh.material.color.setHex( 0xffffff );
 		scene.add( mesh );
 
 		const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
@@ -413,8 +416,8 @@ function render() {
 
 const cursor = document.querySelector('.cursor');
 
-let mouseX = 0;
-let mouseY = 0;
+let mouseX = -100;
+let mouseY = -100;
 
 let cursorX = 0;
 let cursorY = 0;

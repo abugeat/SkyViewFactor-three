@@ -39755,272 +39755,6 @@ class OrbitControls extends EventDispatcher {
 }
 
 /**
- * @param  {Array<BufferGeometry>} geometries
- * @param  {Boolean} useGroups
- * @return {BufferGeometry}
- */
-function mergeBufferGeometries( geometries, useGroups = false ) {
-
-	const isIndexed = geometries[ 0 ].index !== null;
-
-	const attributesUsed = new Set( Object.keys( geometries[ 0 ].attributes ) );
-	const morphAttributesUsed = new Set( Object.keys( geometries[ 0 ].morphAttributes ) );
-
-	const attributes = {};
-	const morphAttributes = {};
-
-	const morphTargetsRelative = geometries[ 0 ].morphTargetsRelative;
-
-	const mergedGeometry = new BufferGeometry();
-
-	let offset = 0;
-
-	for ( let i = 0; i < geometries.length; ++ i ) {
-
-		const geometry = geometries[ i ];
-		let attributesCount = 0;
-
-		// ensure that all geometries are indexed, or none
-
-		if ( isIndexed !== ( geometry.index !== null ) ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.' );
-			return null;
-
-		}
-
-		// gather attributes, exit early if they're different
-
-		for ( const name in geometry.attributes ) {
-
-			if ( ! attributesUsed.has( name ) ) {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure "' + name + '" attribute exists among all geometries, or in none of them.' );
-				return null;
-
-			}
-
-			if ( attributes[ name ] === undefined ) attributes[ name ] = [];
-
-			attributes[ name ].push( geometry.attributes[ name ] );
-
-			attributesCount ++;
-
-		}
-
-		// ensure geometries have the same number of attributes
-
-		if ( attributesCount !== attributesUsed.size ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. Make sure all geometries have the same number of attributes.' );
-			return null;
-
-		}
-
-		// gather morph attributes, exit early if they're different
-
-		if ( morphTargetsRelative !== geometry.morphTargetsRelative ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. .morphTargetsRelative must be consistent throughout all geometries.' );
-			return null;
-
-		}
-
-		for ( const name in geometry.morphAttributes ) {
-
-			if ( ! morphAttributesUsed.has( name ) ) {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '.  .morphAttributes must be consistent throughout all geometries.' );
-				return null;
-
-			}
-
-			if ( morphAttributes[ name ] === undefined ) morphAttributes[ name ] = [];
-
-			morphAttributes[ name ].push( geometry.morphAttributes[ name ] );
-
-		}
-
-		// gather .userData
-
-		mergedGeometry.userData.mergedUserData = mergedGeometry.userData.mergedUserData || [];
-		mergedGeometry.userData.mergedUserData.push( geometry.userData );
-
-		if ( useGroups ) {
-
-			let count;
-
-			if ( isIndexed ) {
-
-				count = geometry.index.count;
-
-			} else if ( geometry.attributes.position !== undefined ) {
-
-				count = geometry.attributes.position.count;
-
-			} else {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. The geometry must have either an index or a position attribute' );
-				return null;
-
-			}
-
-			mergedGeometry.addGroup( offset, count, i );
-
-			offset += count;
-
-		}
-
-	}
-
-	// merge indices
-
-	if ( isIndexed ) {
-
-		let indexOffset = 0;
-		const mergedIndex = [];
-
-		for ( let i = 0; i < geometries.length; ++ i ) {
-
-			const index = geometries[ i ].index;
-
-			for ( let j = 0; j < index.count; ++ j ) {
-
-				mergedIndex.push( index.getX( j ) + indexOffset );
-
-			}
-
-			indexOffset += geometries[ i ].attributes.position.count;
-
-		}
-
-		mergedGeometry.setIndex( mergedIndex );
-
-	}
-
-	// merge attributes
-
-	for ( const name in attributes ) {
-
-		const mergedAttribute = mergeBufferAttributes( attributes[ name ] );
-
-		if ( ! mergedAttribute ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed while trying to merge the ' + name + ' attribute.' );
-			return null;
-
-		}
-
-		mergedGeometry.setAttribute( name, mergedAttribute );
-
-	}
-
-	// merge morph attributes
-
-	for ( const name in morphAttributes ) {
-
-		const numMorphTargets = morphAttributes[ name ][ 0 ].length;
-
-		if ( numMorphTargets === 0 ) break;
-
-		mergedGeometry.morphAttributes = mergedGeometry.morphAttributes || {};
-		mergedGeometry.morphAttributes[ name ] = [];
-
-		for ( let i = 0; i < numMorphTargets; ++ i ) {
-
-			const morphAttributesToMerge = [];
-
-			for ( let j = 0; j < morphAttributes[ name ].length; ++ j ) {
-
-				morphAttributesToMerge.push( morphAttributes[ name ][ j ][ i ] );
-
-			}
-
-			const mergedMorphAttribute = mergeBufferAttributes( morphAttributesToMerge );
-
-			if ( ! mergedMorphAttribute ) {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed while trying to merge the ' + name + ' morphAttribute.' );
-				return null;
-
-			}
-
-			mergedGeometry.morphAttributes[ name ].push( mergedMorphAttribute );
-
-		}
-
-	}
-
-	return mergedGeometry;
-
-}
-
-/**
- * @param {Array<BufferAttribute>} attributes
- * @return {BufferAttribute}
- */
-function mergeBufferAttributes( attributes ) {
-
-	let TypedArray;
-	let itemSize;
-	let normalized;
-	let arrayLength = 0;
-
-	for ( let i = 0; i < attributes.length; ++ i ) {
-
-		const attribute = attributes[ i ];
-
-		if ( attribute.isInterleavedBufferAttribute ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. InterleavedBufferAttributes are not supported.' );
-			return null;
-
-		}
-
-		if ( TypedArray === undefined ) TypedArray = attribute.array.constructor;
-		if ( TypedArray !== attribute.array.constructor ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.' );
-			return null;
-
-		}
-
-		if ( itemSize === undefined ) itemSize = attribute.itemSize;
-		if ( itemSize !== attribute.itemSize ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.' );
-			return null;
-
-		}
-
-		if ( normalized === undefined ) normalized = attribute.normalized;
-		if ( normalized !== attribute.normalized ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.' );
-			return null;
-
-		}
-
-		arrayLength += attribute.array.length;
-
-	}
-
-	const array = new TypedArray( arrayLength );
-	let offset = 0;
-
-	for ( let i = 0; i < attributes.length; ++ i ) {
-
-		array.set( attributes[ i ].array, offset );
-
-		offset += attributes[ i ].array.length;
-
-	}
-
-	return new BufferAttribute( array, itemSize, normalized );
-
-}
-
-/**
  * lil-gui
  * https://lil-gui.georgealways.com
  * @version 0.16.0
@@ -44921,12 +44655,14 @@ function init() {
 
 	// camera setup
 	camera = new PerspectiveCamera( 55, window.innerWidth / window.innerHeight, 0.1, 50 );
-	camera.position.set( 5, 7, -5 );
-	camera.far = 100;
+	// camera.position.set( 5, 7, -5 );
+	camera.position.set( 0, 20, 0 );
+	camera.far = 100000;
 	camera.updateProjectionMatrix();
 
 	controls = new OrbitControls( camera, renderer.domElement );
-	controls.target.set( 25, 0, -25 );
+	// controls.target.set( 25, 0, -25 );
+	controls.target.set( 0, 0, 0 );
 	controls.update();
 	controls.addEventListener( 'change', () => {
 
@@ -45088,7 +44824,7 @@ function init() {
 					// error as values increase.
 					vec3 point = rayOrigin + rayDirection * dist;
 					vec3 absPoint = abs( point );
-					float maxPoint = max( absPoint.x, max( absPoint.y, absPoint.z ) );
+					float maxPoint = max( absPoint.x, max( absPoint.y, absPoint.z ) ) + 1.0;
 					rayOrigin = point + faceNormal * ( maxPoint ) * RAY_OFFSET;
 
 					// VIEW FACTOR RAY DIRECTION GENERATION
@@ -45109,7 +44845,7 @@ function init() {
 	rtMaterial.depthWrite = false;
 
 	// load mesh and set up material BVH attributes
-	new GLTFLoader().load( './cordoba.glb', gltf => {
+	new GLTFLoader().load( './torino.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb
 
 		let dragonMesh;
 		gltf.scene.traverse( c => {
@@ -45117,21 +44853,22 @@ function init() {
 			if ( c.isMesh ) { //&& c.name === 'Dragon' 
 
 				dragonMesh = c;
-				c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
+				// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
 
 			}
 
 		} );
 
-		const planeGeom = new PlaneGeometry( 1, 1, 1, 1 );
-		planeGeom.rotateX( - Math.PI / 2 );
+		// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
+		// planeGeom.rotateX( - Math.PI / 2 );
 
-		const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
+		// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
 		// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
 		// merged.translate( 0, - 0.5, 0 );
 		// merged.rotateX(-Math.PI / 2);
 
-		mesh = new Mesh( merged, new MeshStandardMaterial() );
+		mesh = new Mesh( dragonMesh.geometry, new MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+		// mesh.material.color.setHex( 0xffffff );
 		scene.add( mesh );
 
 		const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
@@ -45278,8 +45015,8 @@ function render() {
 
 const cursor = document.querySelector('.cursor');
 
-let mouseX = 0;
-let mouseY = 0;
+let mouseX = -100;
+let mouseY = -100;
 
 let cursorX = 0;
 let cursorY = 0;
