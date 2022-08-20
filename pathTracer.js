@@ -59,7 +59,7 @@ function init() {
 	// camera setup
 	camera = new THREE.PerspectiveCamera( 55, window.innerWidth / window.innerHeight, 0.1, 50 );
 	// camera.position.set( 5, 7, -5 );
-	camera.position.set( 0, 20, 0 );
+	camera.position.set( 0, 40, 0 );
 	camera.far = 100000;
 	camera.updateProjectionMatrix();
 
@@ -247,38 +247,84 @@ function init() {
 	rtMaterial.transparent = true;
 	rtMaterial.depthWrite = false;
 
-	// load mesh and set up material BVH attributes
-	new GLTFLoader().load( './cordoue.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 
-		let dragonMesh;
-		gltf.scene.traverse( c => {
-
-			if ( c.isMesh ) { //&& c.name === 'Dragon' 
-
-				dragonMesh = c;
-				// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
-
+	const loader = new GLTFLoader();
+	const input = document.getElementById("inputfile");
+	input.addEventListener("change", (event) => {
+	  	const file = event.target.files[0];
+	  	const url = URL.createObjectURL(file);
+	  	loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
+			
+			// remove previous model
+			while(scene.children.length > 0){ 
+				scene.remove(scene.children[0]); 
 			}
+			
+			let dragonMesh;
+			gltf.scene.traverse( c => {
+
+				if ( c.isMesh ) { //&& c.name === 'Dragon' 
+
+					dragonMesh = c;
+					// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
+
+				}
+
+			} );
+
+			// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
+			// planeGeom.rotateX( - Math.PI / 2 );
+
+			// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
+			// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
+			// merged.translate( 0, - 0.5, 0 );
+			// merged.rotateX(-Math.PI / 2);
+
+			mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+			// mesh.material.color.setHex( 0xffffff );
+			scene.add( mesh );
+
+			const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
+			rtMaterial.uniforms.bvh.value.updateFrom( bvh );
+			rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
 		} );
+	});
 
-		// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
-		// planeGeom.rotateX( - Math.PI / 2 );
 
-		// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
-		// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
-		// merged.translate( 0, - 0.5, 0 );
-		// merged.rotateX(-Math.PI / 2);
 
-		mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-		// mesh.material.color.setHex( 0xffffff );
-		scene.add( mesh );
+	// // load mesh and set up material BVH attributes
+	// new GLTFLoader().load( './cordoue.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 
-		const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
-		rtMaterial.uniforms.bvh.value.updateFrom( bvh );
-		rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
+	// 	let dragonMesh;
+	// 	gltf.scene.traverse( c => {
 
-	} );
+	// 		if ( c.isMesh ) { //&& c.name === 'Dragon' 
+
+	// 			dragonMesh = c;
+	// 			// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
+
+	// 		}
+
+	// 	} );
+
+	// 	// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
+	// 	// planeGeom.rotateX( - Math.PI / 2 );
+
+	// 	// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
+	// 	// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
+	// 	// merged.translate( 0, - 0.5, 0 );
+	// 	// merged.rotateX(-Math.PI / 2);
+
+	// 	mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+	// 	// mesh.material.color.setHex( 0xffffff );
+	// 	scene.add( mesh );
+
+	// 	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
+	// 	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
+	// 	rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
+
+	// } );
 
 	renderTarget = new THREE.WebGLRenderTarget( 1, 1, {
 
