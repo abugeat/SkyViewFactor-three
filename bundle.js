@@ -33742,6 +33742,112 @@ PropertyBinding.prototype.SetterByBindingTypeAndVersioning = [
 
 ];
 
+class Raycaster {
+
+	constructor( origin, direction, near = 0, far = Infinity ) {
+
+		this.ray = new Ray( origin, direction );
+		// direction is assumed to be normalized (for accurate distance calculations)
+
+		this.near = near;
+		this.far = far;
+		this.camera = null;
+		this.layers = new Layers();
+
+		this.params = {
+			Mesh: {},
+			Line: { threshold: 1 },
+			LOD: {},
+			Points: { threshold: 1 },
+			Sprite: {}
+		};
+
+	}
+
+	set( origin, direction ) {
+
+		// direction is assumed to be normalized (for accurate distance calculations)
+
+		this.ray.set( origin, direction );
+
+	}
+
+	setFromCamera( coords, camera ) {
+
+		if ( camera.isPerspectiveCamera ) {
+
+			this.ray.origin.setFromMatrixPosition( camera.matrixWorld );
+			this.ray.direction.set( coords.x, coords.y, 0.5 ).unproject( camera ).sub( this.ray.origin ).normalize();
+			this.camera = camera;
+
+		} else if ( camera.isOrthographicCamera ) {
+
+			this.ray.origin.set( coords.x, coords.y, ( camera.near + camera.far ) / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
+			this.ray.direction.set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
+			this.camera = camera;
+
+		} else {
+
+			console.error( 'THREE.Raycaster: Unsupported camera type: ' + camera.type );
+
+		}
+
+	}
+
+	intersectObject( object, recursive = true, intersects = [] ) {
+
+		intersectObject( object, this, intersects, recursive );
+
+		intersects.sort( ascSort );
+
+		return intersects;
+
+	}
+
+	intersectObjects( objects, recursive = true, intersects = [] ) {
+
+		for ( let i = 0, l = objects.length; i < l; i ++ ) {
+
+			intersectObject( objects[ i ], this, intersects, recursive );
+
+		}
+
+		intersects.sort( ascSort );
+
+		return intersects;
+
+	}
+
+}
+
+function ascSort( a, b ) {
+
+	return a.distance - b.distance;
+
+}
+
+function intersectObject( object, raycaster, intersects, recursive ) {
+
+	if ( object.layers.test( raycaster.layers ) ) {
+
+		object.raycast( raycaster, intersects );
+
+	}
+
+	if ( recursive === true ) {
+
+		const children = object.children;
+
+		for ( let i = 0, l = children.length; i < l; i ++ ) {
+
+			intersectObject( children[ i ], raycaster, intersects, true );
+
+		}
+
+	}
+
+}
+
 /**
  * Ref: https://en.wikipedia.org/wiki/Spherical_coordinate_system
  *
@@ -44620,6 +44726,8 @@ let renderer, camera, scene, gui, controls;
 let rtQuad, finalQuad, renderTarget, mesh;
 let samples = 0;
 let outputContainer;
+const raycaster = new Raycaster();
+const pointer = new Vector2();
 
 
 init();
@@ -44845,7 +44953,7 @@ function init() {
 	rtMaterial.depthWrite = false;
 
 	// load mesh and set up material BVH attributes
-	new GLTFLoader().load( './torino.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb
+	new GLTFLoader().load( './cordoue.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 
 		let dragonMesh;
 		gltf.scene.traverse( c => {
@@ -44990,7 +45098,6 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
-		////////////////////
 		// Cursor color inspector
 		const read = new Float32Array( 4 );
 		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale , 1, 1, read );
@@ -45000,7 +45107,7 @@ function render() {
 
 		resetSamples();
 		camera.clearViewOffset();
-		
+
 		renderer.render( scene, camera );
 
 	}
@@ -45010,13 +45117,17 @@ function render() {
 }
 
 
-// Cursor
-// let circle = document.getElementById('circle');
 
+// SVF Cursor
 const cursor = document.querySelector('.cursor');
 
 let mouseX = -100;
 let mouseY = -100;
+
+document.addEventListener('mousemove', (event) => {
+    mouseX = event.pageX;
+    mouseY = event.pageY;
+});
 
 let cursorX = 0;
 let cursorY = 0;
@@ -45038,7 +45149,34 @@ function animate() {
 
 animate();
 
-document.addEventListener('mousemove', (event) => {
-    mouseX = event.pageX;
-    mouseY = event.pageY;
+
+
+
+
+// IMPROVED ORBIT CONTROLS
+document.addEventListener('mousedown', (event) => {
+	updatecontroltarget(event);
 });
+
+function updatecontroltarget(event) {
+	// NOT USED ! pointer: normalized position of the cursor [-1, 1] x,y (0,0 is the middle of the window) 
+	pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
+	pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
+
+	// update the picking ray with the camera and pointer position
+	raycaster.setFromCamera( new Vector2(0.0, 0.0), camera );
+	// raycaster.setFromCamera( pointer, camera );
+
+	// calculate objects intersecting the picking ray
+	const intersects = raycaster.intersectObjects( scene.children );
+
+
+	// set the control target to the closest point
+	if (intersects.length > 0) {
+		if (intersects[0].distance > 0.001) {
+			controls.target.copy(intersects[0].point);
+			controls.update();
+		}
+	}
+
+}

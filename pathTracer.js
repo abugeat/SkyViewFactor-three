@@ -21,6 +21,8 @@ let renderer, camera, scene, gui, controls, stats;
 let rtQuad, finalQuad, renderTarget, mesh;
 let samples = 0;
 let outputContainer;
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
 
 
 init();
@@ -246,7 +248,7 @@ function init() {
 	rtMaterial.depthWrite = false;
 
 	// load mesh and set up material BVH attributes
-	new GLTFLoader().load( './torino.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb
+	new GLTFLoader().load( './cordoue.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 
 		let dragonMesh;
 		gltf.scene.traverse( c => {
@@ -391,7 +393,6 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
-		////////////////////
 		// Cursor color inspector
 		const read = new Float32Array( 4 );
 		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale , 1, 1, read );
@@ -401,7 +402,7 @@ function render() {
 
 		resetSamples();
 		camera.clearViewOffset();
-		
+
 		renderer.render( scene, camera );
 
 	}
@@ -411,13 +412,17 @@ function render() {
 }
 
 
-// Cursor
-// let circle = document.getElementById('circle');
 
+// SVF Cursor
 const cursor = document.querySelector('.cursor');
 
 let mouseX = -100;
 let mouseY = -100;
+
+document.addEventListener('mousemove', (event) => {
+    mouseX = event.pageX;
+    mouseY = event.pageY;
+});
 
 let cursorX = 0;
 let cursorY = 0;
@@ -439,9 +444,35 @@ function animate() {
 
 animate();
 
-document.addEventListener('mousemove', (event) => {
-    mouseX = event.pageX;
-    mouseY = event.pageY;
+
+
+
+
+// IMPROVED ORBIT CONTROLS
+document.addEventListener('mousedown', (event) => {
+	updatecontroltarget(event);
 });
 
+function updatecontroltarget(event) {
+	// NOT USED ! pointer: normalized position of the cursor [-1, 1] x,y (0,0 is the middle of the window) 
+	pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
+	pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
+
+	// update the picking ray with the camera and pointer position
+	raycaster.setFromCamera( new THREE.Vector2(0.0, 0.0), camera );
+	// raycaster.setFromCamera( pointer, camera );
+
+	// calculate objects intersecting the picking ray
+	const intersects = raycaster.intersectObjects( scene.children );
+
+
+	// set the control target to the closest point
+	if (intersects.length > 0) {
+		if (intersects[0].distance > 0.001) {
+			controls.target.copy(intersects[0].point);
+			controls.update();
+		}
+	}
+
+}
 
