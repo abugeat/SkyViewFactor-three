@@ -10,12 +10,17 @@ import {
 	shaderStructs, shaderIntersectFunction, SAH,
 } from 'three-mesh-bvh';
 
+
+
 const params = {
 	enableRaytracing: true,
 	smoothImageScaling: false,
 	resolutionScale: 1.0 / window.devicePixelRatio,
 	accumulate: true,
+	importModel: () => document.getElementById("inputfile").click(),
 };
+
+
 
 let renderer, camera, scene, gui, controls, stats;
 let rtQuad, finalQuad, renderTarget, mesh;
@@ -23,10 +28,14 @@ let samples = 0;
 let outputContainer;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+let askNewModel = false;
+
 
 
 init();
 render();
+
+
 
 function init() {
 
@@ -45,8 +54,6 @@ function init() {
 
 	// scene setup
 	scene = new THREE.Scene();
-
-	
 
 	const axesHelper = new THREE.AxesHelper( 100 );
 	scene.add( axesHelper );
@@ -68,17 +75,11 @@ function init() {
 	controls.target.set( 0, 0, 0 );
 	controls.update();
 	controls.addEventListener( 'change', () => {
-
 		resetSamples();
+	});
 
-	} );
 
-	// stats setup
-	// stats = new Stats();
-	// document.body.appendChild( stats.dom );
-
-	// hand-tuned ray origin offset values to accommodate floating point error. Mobile offset
-	// tuned from Pixel 3 device that reports as highp but seemingly has low precision.
+	// SHADER
 	const rtMaterial = new THREE.ShaderMaterial( {
 
 		// defines: {
@@ -114,7 +115,7 @@ function init() {
 
 			precision highp isampler2D;
 			precision highp usampler2D;
-			${ shaderStructs}
+			${shaderStructs}
 			${shaderIntersectFunction}
 			#include <common>
 
@@ -248,6 +249,8 @@ function init() {
 	rtMaterial.depthWrite = false;
 
 
+
+	// LOADER
 	const loader = new GLTFLoader();
 	const input = document.getElementById("inputfile");
 	input.addEventListener("change", (event) => {
@@ -262,69 +265,23 @@ function init() {
 			
 			let dragonMesh;
 			gltf.scene.traverse( c => {
-
 				if ( c.isMesh ) { //&& c.name === 'Dragon' 
-
 					dragonMesh = c;
-					// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
-
 				}
-
 			} );
 
-			// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
-			// planeGeom.rotateX( - Math.PI / 2 );
-
-			// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
-			// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
-			// merged.translate( 0, - 0.5, 0 );
-			// merged.rotateX(-Math.PI / 2);
-
 			mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-			// mesh.material.color.setHex( 0xffffff );
 			scene.add( mesh );
 
 			const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
 			rtMaterial.uniforms.bvh.value.updateFrom( bvh );
 			rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
-		} );
+			resetSamples();
+
+		});
 	});
 
-
-
-	// // load mesh and set up material BVH attributes
-	// new GLTFLoader().load( './cordoue.glb', gltf => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
-
-	// 	let dragonMesh;
-	// 	gltf.scene.traverse( c => {
-
-	// 		if ( c.isMesh ) { //&& c.name === 'Dragon' 
-
-	// 			dragonMesh = c;
-	// 			// c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
-
-	// 		}
-
-	// 	} );
-
-	// 	// const planeGeom = new THREE.PlaneBufferGeometry( 1, 1, 1, 1 );
-	// 	// planeGeom.rotateX( - Math.PI / 2 );
-
-	// 	// const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
-	// 	// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
-	// 	// merged.translate( 0, - 0.5, 0 );
-	// 	// merged.rotateX(-Math.PI / 2);
-
-	// 	mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-	// 	// mesh.material.color.setHex( 0xffffff );
-	// 	scene.add( mesh );
-
-	// 	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
-	// 	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
-	// 	rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
-
-	// } );
 
 	renderTarget = new THREE.WebGLRenderTarget( 1, 1, {
 
@@ -346,16 +303,17 @@ function init() {
 	gui.add( params, 'accumulate' );
 	gui.add( params, 'smoothImageScaling' );
 	gui.add( params, 'resolutionScale', 0.1, 1, 0.01 ).onChange( resize );
-	// gui.add( params, 'bounces', 1, 10, 1 ).onChange( v => {
+	gui.add( params, 'importModel' ).onChange( () => {
+		
+		const input = document.getElementById("inputfile");
+		input.click();
+	
+	});
 
-	// 	rtMaterial.defines.BOUNCES = parseInt( v );
-	// 	rtMaterial.needsUpdate = true;
-	// 	resetSamples();
-
-	// } );
 	gui.open();
 
 	window.addEventListener( 'resize', resize, false );
+
 	resize();
 
 }
