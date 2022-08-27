@@ -263,24 +263,43 @@ function init() {
 				scene.remove(scene.children[0]); 
 			}
 			
-			let dragonMesh;
+			let subMesh;
 			gltf.scene.traverse( c => {
 				if ( c.isMesh ) { //&& c.name === 'Dragon' 
-					dragonMesh = c;
+					subMesh = c;
+					// let center = getCenterPoint(c);
+					// c.geometry.translateX(-center.x);
+					// c.geometry.translateY(-center.y);
+					// c.geometry.translateZ(-center.z);
 				}
 			} );
 
-			mesh = new THREE.Mesh( dragonMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+			// move mesh barycenter to global origin
+			let center = getCenterPoint(subMesh);
+			subMesh.geometry.translate(-center.x, -center.y, -center.z);
+
+			mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+			
+			// move mesh barycenter to global origin
+			// let center = getCenterPoint(mesh);
+			// mesh.translate(-center.x, -center.y, -center.z);
+			// mesh.translateY(-center.y);
+			// mesh.translateZ(-center.z);
+			// console.log(center);
+			
 			scene.add( mesh );
 
 			const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
 			rtMaterial.uniforms.bvh.value.updateFrom( bvh );
 			rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
+			
+
 			resetSamples();
 
 		});
 	});
+
 
 
 	renderTarget = new THREE.WebGLRenderTarget( 1, 1, {
@@ -415,7 +434,14 @@ function render() {
 
 }
 
-
+function getCenterPoint(mesh) {
+	var geometry = mesh.geometry;
+	geometry.computeBoundingBox();
+	var center = new THREE.Vector3();
+	geometry.boundingBox.getCenter( center );
+	mesh.localToWorld( center );
+	return center;
+}
 
 // SVF Cursor
 const cursor = document.querySelector('.cursor');
@@ -454,7 +480,14 @@ animate();
 
 // IMPROVED ORBIT CONTROLS
 document.addEventListener('mousedown', (event) => {
-	updatecontroltarget(event);
+	// get view direction
+	let viewDirection = new THREE.Vector3();
+	camera.getWorldDirection( viewDirection );
+
+	// update only if not looking into the bottom direction
+	if (viewDirection.y > 0.999) {
+		updatecontroltarget(event);
+	}
 });
 
 function updatecontroltarget(event) {
