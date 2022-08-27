@@ -11,13 +11,13 @@ import {
 } from 'three-mesh-bvh';
 
 
-
 const params = {
 	enableRaytracing: true,
 	smoothImageScaling: false,
 	resolutionScale: 1.0 / window.devicePixelRatio,
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
+	changeModelUp: () => changeModelUp(),
 };
 
 
@@ -29,7 +29,10 @@ let outputContainer;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let askNewModel = false;
+let rtMaterial;
 
+
+// THREE.Object3D.DefaultUp.set( 0, 0, 1 );
 
 
 init();
@@ -66,7 +69,7 @@ function init() {
 	// camera setup
 	camera = new THREE.PerspectiveCamera( 55, window.innerWidth / window.innerHeight, 0.1, 50 );
 	// camera.position.set( 5, 7, -5 );
-	camera.position.set( 0, 40, 0 );
+	camera.position.set( 0, 40, -60 );
 	camera.far = 100000;
 	camera.updateProjectionMatrix();
 
@@ -80,7 +83,7 @@ function init() {
 
 
 	// SHADER
-	const rtMaterial = new THREE.ShaderMaterial( {
+	rtMaterial = new THREE.ShaderMaterial( {
 
 		// defines: {
 		// 	BOUNCES: 5,
@@ -256,6 +259,9 @@ function init() {
 	input.addEventListener("change", (event) => {
 	  	const file = event.target.files[0];
 	  	const url = URL.createObjectURL(file);
+		const fileName = file.name;
+		console.log(fileName.split('.').pop());
+		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
 	  	loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 			
 			// remove previous model
@@ -277,24 +283,22 @@ function init() {
 			// move mesh barycenter to global origin
 			let center = getCenterPoint(subMesh);
 			subMesh.geometry.translate(-center.x, -center.y, -center.z);
-
-			mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
 			
-			// move mesh barycenter to global origin
-			// let center = getCenterPoint(mesh);
-			// mesh.translate(-center.x, -center.y, -center.z);
-			// mesh.translateY(-center.y);
-			// mesh.translateZ(-center.z);
-			// console.log(center);
+			mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
 			
 			scene.add( mesh );
 
-			const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
-			rtMaterial.uniforms.bvh.value.updateFrom( bvh );
-			rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
+			camera.position.set( 0, 40, -60 );
+			// camera.far = 100000;
+			// camera.updateProjectionMatrix();
 
+			// controls = new OrbitControls( camera, renderer.domElement );
+			// // controls.target.set( 25, 0, -25 );
+			controls.target.set( 0, 0, 0 );
+			controls.update();
+
+			newBVH();
 			
-
 			resetSamples();
 
 		});
@@ -328,12 +332,33 @@ function init() {
 		input.click();
 	
 	});
+	gui.add( params, 'changeModelUp' );
 
 	gui.open();
 
 	window.addEventListener( 'resize', resize, false );
 
 	resize();
+
+}
+
+function changeModelUp() {
+
+	mesh.geometry.rotateX(Math.PI/2);
+	mesh.geometry.rotateY(Math.PI/2);
+
+	newBVH();
+
+	resetSamples();
+
+
+}
+
+function newBVH(newMesh) {
+
+	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
+	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
+	rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
 }
 
@@ -485,7 +510,7 @@ document.addEventListener('mousedown', (event) => {
 	camera.getWorldDirection( viewDirection );
 
 	// update only if not looking into the bottom direction
-	if (viewDirection.y > 0.999) {
+	if (viewDirection.y > -0.999) {
 		updatecontroltarget(event);
 	}
 });
