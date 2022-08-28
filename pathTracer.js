@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // import * as Stats from 'stats.js';
@@ -254,55 +255,137 @@ function init() {
 
 
 	// LOADER
-	const loader = new GLTFLoader();
+	
 	const input = document.getElementById("inputfile");
 	input.addEventListener("change", (event) => {
+		let loader;
 	  	const file = event.target.files[0];
 	  	const url = URL.createObjectURL(file);
 		const fileName = file.name;
-		console.log(fileName.split('.').pop());
-		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
-	  	loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
-			
-			// remove previous model
-			while(scene.children.length > 0){ 
-				scene.remove(scene.children[0]); 
-			}
-			
-			let subMesh;
-			gltf.scene.traverse( c => {
-				if ( c.isMesh ) { //&& c.name === 'Dragon' 
-					subMesh = c;
-					// let center = getCenterPoint(c);
-					// c.geometry.translateX(-center.x);
-					// c.geometry.translateY(-center.y);
-					// c.geometry.translateZ(-center.z);
-				}
-			} );
-
-			// move mesh barycenter to global origin
-			let center = getCenterPoint(subMesh);
-			subMesh.geometry.translate(-center.x, -center.y, -center.z);
-			
-			mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-			
-			scene.add( mesh );
-
-			camera.position.set( 0, 40, -60 );
-			// camera.far = 100000;
-			// camera.updateProjectionMatrix();
-
-			// controls = new OrbitControls( camera, renderer.domElement );
-			// // controls.target.set( 25, 0, -25 );
-			controls.target.set( 0, 0, 0 );
-			controls.update();
-
-			newBVH();
-			
-			resetSamples();
-
+		const fileExt = fileName.split('.').pop();
+		const material = new THREE.MeshPhysicalMaterial({
+			color: 0xb2ffc8,
+			// envMap: envTexture,
+			metalness: 0.25,
+			roughness: 0.1,
+			opacity: 1.0,
+			transparent: true,
+			transmission: 0.99,
+			clearcoat: 1.0,
+			clearcoatRoughness: 0.25
 		});
+
+		switch (fileExt) {
+			case "glb":
+				loader = new GLTFLoader();
+				loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
+					
+					// remove previous model
+					while(scene.children.length > 0){ 
+						scene.remove(scene.children[0]); 
+					}
+					
+					let subMesh;
+					gltf.scene.traverse( c => {
+						if ( c.isMesh ) { //&& c.name === 'Dragon' 
+							subMesh = c;
+							// let center = getCenterPoint(c);
+							// c.geometry.translateX(-center.x);
+							// c.geometry.translateY(-center.y);
+							// c.geometry.translateZ(-center.z);
+						}
+					} );
+		
+					// move mesh barycenter to global origin
+					let center = getCenterPoint(subMesh);
+					subMesh.geometry.translate(-center.x, -center.y, -center.z);
+					
+					mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+					
+					scene.add( mesh );
+		
+					camera.position.set( 0, 40, -60 );
+					controls.target.set( 0, 0, 0 );
+					controls.update();
+		
+					newBVH();
+					
+					resetSamples();
+		
+				});
+				break;
+			
+			case "stl":
+				loader = new STLLoader();
+				loader.load(url, (geometry) => {
+					console.log(geometry);
+					
+				
+					mesh = new THREE.Mesh(geometry, material);
+
+					// move mesh barycenter to global origin
+					let center = getCenterPoint(mesh);
+					mesh.geometry.translate(-center.x, -center.y, -center.z);
+												
+					scene.add(mesh);
+
+					camera.position.set( 0, 40, -60 );
+					controls.target.set( 0, 0, 0 );
+					controls.update();
+		
+					newBVH();
+					
+					resetSamples();
+				},
+				// (xhr) => {
+				// 	console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+				// },
+				// (error) => {
+				// 	console.log(error)
+				// }
+				);
+				break;
+
+			default:
+				console.log(`Sorry, file format not recognized.`);
+		}
+		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
+	  	// loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
+			
+		// 	// remove previous model
+		// 	while(scene.children.length > 0){ 
+		// 		scene.remove(scene.children[0]); 
+		// 	}
+			
+		// 	let subMesh;
+		// 	gltf.scene.traverse( c => {
+		// 		if ( c.isMesh ) { //&& c.name === 'Dragon' 
+		// 			subMesh = c;
+		// 			// let center = getCenterPoint(c);
+		// 			// c.geometry.translateX(-center.x);
+		// 			// c.geometry.translateY(-center.y);
+		// 			// c.geometry.translateZ(-center.z);
+		// 		}
+		// 	} );
+
+		// 	// move mesh barycenter to global origin
+		// 	let center = getCenterPoint(subMesh);
+		// 	subMesh.geometry.translate(-center.x, -center.y, -center.z);
+			
+		// 	mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+			
+		// 	scene.add( mesh );
+
+		// 	camera.position.set( 0, 40, -60 );
+		// 	controls.target.set( 0, 0, 0 );
+		// 	controls.update();
+
+		// 	newBVH();
+			
+		// 	resetSamples();
+
 	});
+	// });
 
 
 
