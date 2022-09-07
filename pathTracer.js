@@ -405,6 +405,7 @@ function init() {
 
 
 	gui = new GUI();
+	gui.title("SkyViewFactor-three");
 	gui.add( params, 'enableRaytracing' ).name( 'enable' );
 	gui.add( params, 'accumulate' );
 	gui.add( params, 'smoothImageScaling' );
