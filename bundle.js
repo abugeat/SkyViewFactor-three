@@ -33742,6 +33742,112 @@ PropertyBinding.prototype.SetterByBindingTypeAndVersioning = [
 
 ];
 
+class Raycaster {
+
+	constructor( origin, direction, near = 0, far = Infinity ) {
+
+		this.ray = new Ray( origin, direction );
+		// direction is assumed to be normalized (for accurate distance calculations)
+
+		this.near = near;
+		this.far = far;
+		this.camera = null;
+		this.layers = new Layers();
+
+		this.params = {
+			Mesh: {},
+			Line: { threshold: 1 },
+			LOD: {},
+			Points: { threshold: 1 },
+			Sprite: {}
+		};
+
+	}
+
+	set( origin, direction ) {
+
+		// direction is assumed to be normalized (for accurate distance calculations)
+
+		this.ray.set( origin, direction );
+
+	}
+
+	setFromCamera( coords, camera ) {
+
+		if ( camera.isPerspectiveCamera ) {
+
+			this.ray.origin.setFromMatrixPosition( camera.matrixWorld );
+			this.ray.direction.set( coords.x, coords.y, 0.5 ).unproject( camera ).sub( this.ray.origin ).normalize();
+			this.camera = camera;
+
+		} else if ( camera.isOrthographicCamera ) {
+
+			this.ray.origin.set( coords.x, coords.y, ( camera.near + camera.far ) / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
+			this.ray.direction.set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
+			this.camera = camera;
+
+		} else {
+
+			console.error( 'THREE.Raycaster: Unsupported camera type: ' + camera.type );
+
+		}
+
+	}
+
+	intersectObject( object, recursive = true, intersects = [] ) {
+
+		intersectObject( object, this, intersects, recursive );
+
+		intersects.sort( ascSort );
+
+		return intersects;
+
+	}
+
+	intersectObjects( objects, recursive = true, intersects = [] ) {
+
+		for ( let i = 0, l = objects.length; i < l; i ++ ) {
+
+			intersectObject( objects[ i ], this, intersects, recursive );
+
+		}
+
+		intersects.sort( ascSort );
+
+		return intersects;
+
+	}
+
+}
+
+function ascSort( a, b ) {
+
+	return a.distance - b.distance;
+
+}
+
+function intersectObject( object, raycaster, intersects, recursive ) {
+
+	if ( object.layers.test( raycaster.layers ) ) {
+
+		object.raycast( raycaster, intersects );
+
+	}
+
+	if ( recursive === true ) {
+
+		const children = object.children;
+
+		for ( let i = 0, l = children.length; i < l; i ++ ) {
+
+			intersectObject( children[ i ], raycaster, intersects, true );
+
+		}
+
+	}
+
+}
+
 /**
  * Ref: https://en.wikipedia.org/wiki/Spherical_coordinate_system
  *
@@ -38540,6 +38646,394 @@ function toTrianglesDrawMode( geometry, drawMode ) {
 
 }
 
+/**
+ * Description: A THREE loader for STL ASCII files, as created by Solidworks and other CAD programs.
+ *
+ * Supports both binary and ASCII encoded files, with automatic detection of type.
+ *
+ * The loader returns a non-indexed buffer geometry.
+ *
+ * Limitations:
+ *  Binary decoding supports "Magics" color format (http://en.wikipedia.org/wiki/STL_(file_format)#Color_in_binary_STL).
+ *  There is perhaps some question as to how valid it is to always assume little-endian-ness.
+ *  ASCII decoding assumes file is UTF-8.
+ *
+ * Usage:
+ *  const loader = new STLLoader();
+ *  loader.load( './models/stl/slotted_disk.stl', function ( geometry ) {
+ *    scene.add( new THREE.Mesh( geometry ) );
+ *  });
+ *
+ * For binary STLs geometry might contain colors for vertices. To use it:
+ *  // use the same code to load STL as above
+ *  if (geometry.hasColors) {
+ *    material = new THREE.MeshPhongMaterial({ opacity: geometry.alpha, vertexColors: true });
+ *  } else { .... }
+ *  const mesh = new THREE.Mesh( geometry, material );
+ *
+ * For ASCII STLs containing multiple solids, each solid is assigned to a different group.
+ * Groups can be used to assign a different color by defining an array of materials with the same length of
+ * geometry.groups and passing it to the Mesh constructor:
+ *
+ * const mesh = new THREE.Mesh( geometry, material );
+ *
+ * For example:
+ *
+ *  const materials = [];
+ *  const nGeometryGroups = geometry.groups.length;
+ *
+ *  const colorMap = ...; // Some logic to index colors.
+ *
+ *  for (let i = 0; i < nGeometryGroups; i++) {
+ *
+ *		const material = new THREE.MeshPhongMaterial({
+ *			color: colorMap[i],
+ *			wireframe: false
+ *		});
+ *
+ *  }
+ *
+ *  materials.push(material);
+ *  const mesh = new THREE.Mesh(geometry, materials);
+ */
+
+
+class STLLoader extends Loader {
+
+	constructor( manager ) {
+
+		super( manager );
+
+	}
+
+	load( url, onLoad, onProgress, onError ) {
+
+		const scope = this;
+
+		const loader = new FileLoader( this.manager );
+		loader.setPath( this.path );
+		loader.setResponseType( 'arraybuffer' );
+		loader.setRequestHeader( this.requestHeader );
+		loader.setWithCredentials( this.withCredentials );
+
+		loader.load( url, function ( text ) {
+
+			try {
+
+				onLoad( scope.parse( text ) );
+
+			} catch ( e ) {
+
+				if ( onError ) {
+
+					onError( e );
+
+				} else {
+
+					console.error( e );
+
+				}
+
+				scope.manager.itemError( url );
+
+			}
+
+		}, onProgress, onError );
+
+	}
+
+	parse( data ) {
+
+		function isBinary( data ) {
+
+			const reader = new DataView( data );
+			const face_size = ( 32 / 8 * 3 ) + ( ( 32 / 8 * 3 ) * 3 ) + ( 16 / 8 );
+			const n_faces = reader.getUint32( 80, true );
+			const expect = 80 + ( 32 / 8 ) + ( n_faces * face_size );
+
+			if ( expect === reader.byteLength ) {
+
+				return true;
+
+			}
+
+			// An ASCII STL data must begin with 'solid ' as the first six bytes.
+			// However, ASCII STLs lacking the SPACE after the 'd' are known to be
+			// plentiful.  So, check the first 5 bytes for 'solid'.
+
+			// Several encodings, such as UTF-8, precede the text with up to 5 bytes:
+			// https://en.wikipedia.org/wiki/Byte_order_mark#Byte_order_marks_by_encoding
+			// Search for "solid" to start anywhere after those prefixes.
+
+			// US-ASCII ordinal values for 's', 'o', 'l', 'i', 'd'
+
+			const solid = [ 115, 111, 108, 105, 100 ];
+
+			for ( let off = 0; off < 5; off ++ ) {
+
+				// If "solid" text is matched to the current offset, declare it to be an ASCII STL.
+
+				if ( matchDataViewAt( solid, reader, off ) ) return false;
+
+			}
+
+			// Couldn't find "solid" text at the beginning; it is binary STL.
+
+			return true;
+
+		}
+
+		function matchDataViewAt( query, reader, offset ) {
+
+			// Check if each byte in query matches the corresponding byte from the current offset
+
+			for ( let i = 0, il = query.length; i < il; i ++ ) {
+
+				if ( query[ i ] !== reader.getUint8( offset + i ) ) return false;
+
+			}
+
+			return true;
+
+		}
+
+		function parseBinary( data ) {
+
+			const reader = new DataView( data );
+			const faces = reader.getUint32( 80, true );
+
+			let r, g, b, hasColors = false, colors;
+			let defaultR, defaultG, defaultB, alpha;
+
+			// process STL header
+			// check for default color in header ("COLOR=rgba" sequence).
+
+			for ( let index = 0; index < 80 - 10; index ++ ) {
+
+				if ( ( reader.getUint32( index, false ) == 0x434F4C4F /*COLO*/ ) &&
+					( reader.getUint8( index + 4 ) == 0x52 /*'R'*/ ) &&
+					( reader.getUint8( index + 5 ) == 0x3D /*'='*/ ) ) {
+
+					hasColors = true;
+					colors = new Float32Array( faces * 3 * 3 );
+
+					defaultR = reader.getUint8( index + 6 ) / 255;
+					defaultG = reader.getUint8( index + 7 ) / 255;
+					defaultB = reader.getUint8( index + 8 ) / 255;
+					alpha = reader.getUint8( index + 9 ) / 255;
+
+				}
+
+			}
+
+			const dataOffset = 84;
+			const faceLength = 12 * 4 + 2;
+
+			const geometry = new BufferGeometry();
+
+			const vertices = new Float32Array( faces * 3 * 3 );
+			const normals = new Float32Array( faces * 3 * 3 );
+
+			for ( let face = 0; face < faces; face ++ ) {
+
+				const start = dataOffset + face * faceLength;
+				const normalX = reader.getFloat32( start, true );
+				const normalY = reader.getFloat32( start + 4, true );
+				const normalZ = reader.getFloat32( start + 8, true );
+
+				if ( hasColors ) {
+
+					const packedColor = reader.getUint16( start + 48, true );
+
+					if ( ( packedColor & 0x8000 ) === 0 ) {
+
+						// facet has its own unique color
+
+						r = ( packedColor & 0x1F ) / 31;
+						g = ( ( packedColor >> 5 ) & 0x1F ) / 31;
+						b = ( ( packedColor >> 10 ) & 0x1F ) / 31;
+
+					} else {
+
+						r = defaultR;
+						g = defaultG;
+						b = defaultB;
+
+					}
+
+				}
+
+				for ( let i = 1; i <= 3; i ++ ) {
+
+					const vertexstart = start + i * 12;
+					const componentIdx = ( face * 3 * 3 ) + ( ( i - 1 ) * 3 );
+
+					vertices[ componentIdx ] = reader.getFloat32( vertexstart, true );
+					vertices[ componentIdx + 1 ] = reader.getFloat32( vertexstart + 4, true );
+					vertices[ componentIdx + 2 ] = reader.getFloat32( vertexstart + 8, true );
+
+					normals[ componentIdx ] = normalX;
+					normals[ componentIdx + 1 ] = normalY;
+					normals[ componentIdx + 2 ] = normalZ;
+
+					if ( hasColors ) {
+
+						colors[ componentIdx ] = r;
+						colors[ componentIdx + 1 ] = g;
+						colors[ componentIdx + 2 ] = b;
+
+					}
+
+				}
+
+			}
+
+			geometry.setAttribute( 'position', new BufferAttribute( vertices, 3 ) );
+			geometry.setAttribute( 'normal', new BufferAttribute( normals, 3 ) );
+
+			if ( hasColors ) {
+
+				geometry.setAttribute( 'color', new BufferAttribute( colors, 3 ) );
+				geometry.hasColors = true;
+				geometry.alpha = alpha;
+
+			}
+
+			return geometry;
+
+		}
+
+		function parseASCII( data ) {
+
+			const geometry = new BufferGeometry();
+			const patternSolid = /solid([\s\S]*?)endsolid/g;
+			const patternFace = /facet([\s\S]*?)endfacet/g;
+			let faceCounter = 0;
+
+			const patternFloat = /[\s]+([+-]?(?:\d*)(?:\.\d*)?(?:[eE][+-]?\d+)?)/.source;
+			const patternVertex = new RegExp( 'vertex' + patternFloat + patternFloat + patternFloat, 'g' );
+			const patternNormal = new RegExp( 'normal' + patternFloat + patternFloat + patternFloat, 'g' );
+
+			const vertices = [];
+			const normals = [];
+
+			const normal = new Vector3();
+
+			let result;
+
+			let groupCount = 0;
+			let startVertex = 0;
+			let endVertex = 0;
+
+			while ( ( result = patternSolid.exec( data ) ) !== null ) {
+
+				startVertex = endVertex;
+
+				const solid = result[ 0 ];
+
+				while ( ( result = patternFace.exec( solid ) ) !== null ) {
+
+					let vertexCountPerFace = 0;
+					let normalCountPerFace = 0;
+
+					const text = result[ 0 ];
+
+					while ( ( result = patternNormal.exec( text ) ) !== null ) {
+
+						normal.x = parseFloat( result[ 1 ] );
+						normal.y = parseFloat( result[ 2 ] );
+						normal.z = parseFloat( result[ 3 ] );
+						normalCountPerFace ++;
+
+					}
+
+					while ( ( result = patternVertex.exec( text ) ) !== null ) {
+
+						vertices.push( parseFloat( result[ 1 ] ), parseFloat( result[ 2 ] ), parseFloat( result[ 3 ] ) );
+						normals.push( normal.x, normal.y, normal.z );
+						vertexCountPerFace ++;
+						endVertex ++;
+
+					}
+
+					// every face have to own ONE valid normal
+
+					if ( normalCountPerFace !== 1 ) {
+
+						console.error( 'THREE.STLLoader: Something isn\'t right with the normal of face number ' + faceCounter );
+
+					}
+
+					// each face have to own THREE valid vertices
+
+					if ( vertexCountPerFace !== 3 ) {
+
+						console.error( 'THREE.STLLoader: Something isn\'t right with the vertices of face number ' + faceCounter );
+
+					}
+
+					faceCounter ++;
+
+				}
+
+				const start = startVertex;
+				const count = endVertex - startVertex;
+
+				geometry.addGroup( start, count, groupCount );
+				groupCount ++;
+
+			}
+
+			geometry.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+			geometry.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+
+			return geometry;
+
+		}
+
+		function ensureString( buffer ) {
+
+			if ( typeof buffer !== 'string' ) {
+
+				return LoaderUtils.decodeText( new Uint8Array( buffer ) );
+
+			}
+
+			return buffer;
+
+		}
+
+		function ensureBinary( buffer ) {
+
+			if ( typeof buffer === 'string' ) {
+
+				const array_buffer = new Uint8Array( buffer.length );
+				for ( let i = 0; i < buffer.length; i ++ ) {
+
+					array_buffer[ i ] = buffer.charCodeAt( i ) & 0xff; // implicitly assumes little-endian
+
+				}
+
+				return array_buffer.buffer || array_buffer;
+
+			} else {
+
+				return buffer;
+
+			}
+
+		}
+
+		// start
+
+		const binData = ensureBinary( data );
+
+		return isBinary( binData ) ? parseBinary( binData ) : parseASCII( ensureString( data ) );
+
+	}
+
+}
+
 // This set of controls performs orbiting, dollying (zooming), and panning.
 // Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
 //
@@ -39751,272 +40245,6 @@ class OrbitControls extends EventDispatcher {
 		this.update();
 
 	}
-
-}
-
-/**
- * @param  {Array<BufferGeometry>} geometries
- * @param  {Boolean} useGroups
- * @return {BufferGeometry}
- */
-function mergeBufferGeometries( geometries, useGroups = false ) {
-
-	const isIndexed = geometries[ 0 ].index !== null;
-
-	const attributesUsed = new Set( Object.keys( geometries[ 0 ].attributes ) );
-	const morphAttributesUsed = new Set( Object.keys( geometries[ 0 ].morphAttributes ) );
-
-	const attributes = {};
-	const morphAttributes = {};
-
-	const morphTargetsRelative = geometries[ 0 ].morphTargetsRelative;
-
-	const mergedGeometry = new BufferGeometry();
-
-	let offset = 0;
-
-	for ( let i = 0; i < geometries.length; ++ i ) {
-
-		const geometry = geometries[ i ];
-		let attributesCount = 0;
-
-		// ensure that all geometries are indexed, or none
-
-		if ( isIndexed !== ( geometry.index !== null ) ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.' );
-			return null;
-
-		}
-
-		// gather attributes, exit early if they're different
-
-		for ( const name in geometry.attributes ) {
-
-			if ( ! attributesUsed.has( name ) ) {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure "' + name + '" attribute exists among all geometries, or in none of them.' );
-				return null;
-
-			}
-
-			if ( attributes[ name ] === undefined ) attributes[ name ] = [];
-
-			attributes[ name ].push( geometry.attributes[ name ] );
-
-			attributesCount ++;
-
-		}
-
-		// ensure geometries have the same number of attributes
-
-		if ( attributesCount !== attributesUsed.size ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. Make sure all geometries have the same number of attributes.' );
-			return null;
-
-		}
-
-		// gather morph attributes, exit early if they're different
-
-		if ( morphTargetsRelative !== geometry.morphTargetsRelative ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. .morphTargetsRelative must be consistent throughout all geometries.' );
-			return null;
-
-		}
-
-		for ( const name in geometry.morphAttributes ) {
-
-			if ( ! morphAttributesUsed.has( name ) ) {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '.  .morphAttributes must be consistent throughout all geometries.' );
-				return null;
-
-			}
-
-			if ( morphAttributes[ name ] === undefined ) morphAttributes[ name ] = [];
-
-			morphAttributes[ name ].push( geometry.morphAttributes[ name ] );
-
-		}
-
-		// gather .userData
-
-		mergedGeometry.userData.mergedUserData = mergedGeometry.userData.mergedUserData || [];
-		mergedGeometry.userData.mergedUserData.push( geometry.userData );
-
-		if ( useGroups ) {
-
-			let count;
-
-			if ( isIndexed ) {
-
-				count = geometry.index.count;
-
-			} else if ( geometry.attributes.position !== undefined ) {
-
-				count = geometry.attributes.position.count;
-
-			} else {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. The geometry must have either an index or a position attribute' );
-				return null;
-
-			}
-
-			mergedGeometry.addGroup( offset, count, i );
-
-			offset += count;
-
-		}
-
-	}
-
-	// merge indices
-
-	if ( isIndexed ) {
-
-		let indexOffset = 0;
-		const mergedIndex = [];
-
-		for ( let i = 0; i < geometries.length; ++ i ) {
-
-			const index = geometries[ i ].index;
-
-			for ( let j = 0; j < index.count; ++ j ) {
-
-				mergedIndex.push( index.getX( j ) + indexOffset );
-
-			}
-
-			indexOffset += geometries[ i ].attributes.position.count;
-
-		}
-
-		mergedGeometry.setIndex( mergedIndex );
-
-	}
-
-	// merge attributes
-
-	for ( const name in attributes ) {
-
-		const mergedAttribute = mergeBufferAttributes( attributes[ name ] );
-
-		if ( ! mergedAttribute ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed while trying to merge the ' + name + ' attribute.' );
-			return null;
-
-		}
-
-		mergedGeometry.setAttribute( name, mergedAttribute );
-
-	}
-
-	// merge morph attributes
-
-	for ( const name in morphAttributes ) {
-
-		const numMorphTargets = morphAttributes[ name ][ 0 ].length;
-
-		if ( numMorphTargets === 0 ) break;
-
-		mergedGeometry.morphAttributes = mergedGeometry.morphAttributes || {};
-		mergedGeometry.morphAttributes[ name ] = [];
-
-		for ( let i = 0; i < numMorphTargets; ++ i ) {
-
-			const morphAttributesToMerge = [];
-
-			for ( let j = 0; j < morphAttributes[ name ].length; ++ j ) {
-
-				morphAttributesToMerge.push( morphAttributes[ name ][ j ][ i ] );
-
-			}
-
-			const mergedMorphAttribute = mergeBufferAttributes( morphAttributesToMerge );
-
-			if ( ! mergedMorphAttribute ) {
-
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed while trying to merge the ' + name + ' morphAttribute.' );
-				return null;
-
-			}
-
-			mergedGeometry.morphAttributes[ name ].push( mergedMorphAttribute );
-
-		}
-
-	}
-
-	return mergedGeometry;
-
-}
-
-/**
- * @param {Array<BufferAttribute>} attributes
- * @return {BufferAttribute}
- */
-function mergeBufferAttributes( attributes ) {
-
-	let TypedArray;
-	let itemSize;
-	let normalized;
-	let arrayLength = 0;
-
-	for ( let i = 0; i < attributes.length; ++ i ) {
-
-		const attribute = attributes[ i ];
-
-		if ( attribute.isInterleavedBufferAttribute ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. InterleavedBufferAttributes are not supported.' );
-			return null;
-
-		}
-
-		if ( TypedArray === undefined ) TypedArray = attribute.array.constructor;
-		if ( TypedArray !== attribute.array.constructor ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.' );
-			return null;
-
-		}
-
-		if ( itemSize === undefined ) itemSize = attribute.itemSize;
-		if ( itemSize !== attribute.itemSize ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.' );
-			return null;
-
-		}
-
-		if ( normalized === undefined ) normalized = attribute.normalized;
-		if ( normalized !== attribute.normalized ) {
-
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.' );
-			return null;
-
-		}
-
-		arrayLength += attribute.array.length;
-
-	}
-
-	const array = new TypedArray( arrayLength );
-	let offset = 0;
-
-	for ( let i = 0; i < attributes.length; ++ i ) {
-
-		array.set( attributes[ i ].array, offset );
-
-		offset += attributes[ i ].array.length;
-
-	}
-
-	return new BufferAttribute( array, itemSize, normalized );
 
 }
 
@@ -44877,19 +45105,31 @@ bool bvhIntersectFirstHit(
 
 const params = {
 	enableRaytracing: true,
-	smoothImageScaling: true,
-	resolutionScale: 0.5 / window.devicePixelRatio,
-	bounces: 3,
+	smoothImageScaling: false,
+	resolutionScale: 1.0 / window.devicePixelRatio,
 	accumulate: true,
+	importModel: () => document.getElementById("inputfile").click(),
+	changeModelUp: () => changeModelUp(),
 };
 
-let renderer, camera, scene, gui;
+
+
+let renderer, camera, scene, gui, controls;
 let rtQuad, finalQuad, renderTarget, mesh;
 let samples = 0;
 let outputContainer;
+const raycaster = new Raycaster();
+const pointer = new Vector2();
+let rtMaterial;
+
+
+// THREE.Object3D.DefaultUp.set( 0, 0, 1 );
+
 
 init();
 render();
+
+
 
 function init() {
 
@@ -44899,6 +45139,7 @@ function init() {
 	renderer.setClearColor( 0x09141a );
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	// https://stackoverflow.com/questions/69345609/three-js-textures-become-grayish-with-renderer-outputencoding-srgbencoding
+	// https://learnopengl.com/Advanced-Lighting/Gamma-Correction
 	// renderer.outputEncoding = THREE.sRGBEncoding;
 	renderer.outputEncoding = LinearEncoding; 
 	document.body.appendChild( renderer.domElement );
@@ -44918,21 +45159,26 @@ function init() {
 
 	// camera setup
 	camera = new PerspectiveCamera( 55, window.innerWidth / window.innerHeight, 0.1, 50 );
-	camera.position.set( 0, 20, 0 );
-	camera.far = 55;
+	// camera.position.set( 5, 7, -5 );
+	camera.position.set( 0, 40, -60 );
+	camera.far = 100000;
 	camera.updateProjectionMatrix();
 
-	// stats setup
-	// stats = new Stats();
-	// document.body.appendChild( stats.dom );
+	controls = new OrbitControls( camera, renderer.domElement );
+	// controls.target.set( 25, 0, -25 );
+	controls.target.set( 0, 0, 0 );
+	controls.update();
+	controls.addEventListener( 'change', () => {
+		resetSamples();
+	});
 
-	// hand-tuned ray origin offset values to accommodate floating point error. Mobile offset
-	// tuned from Pixel 3 device that reports as highp but seemingly has low precision.
-	const rtMaterial = new ShaderMaterial( {
 
-		defines: {
-			BOUNCES: 5,
-		},
+	// SHADER
+	rtMaterial = new ShaderMaterial( {
+
+		// defines: {
+		// 	BOUNCES: 5,
+		// },
 
 		uniforms: {
 			bvh: { value: new MeshBVHUniformStruct() },
@@ -44963,7 +45209,7 @@ function init() {
 
 			precision highp isampler2D;
 			precision highp usampler2D;
-			${ shaderStructs}
+			${shaderStructs}
 			${shaderIntersectFunction}
 			#include <common>
 
@@ -44987,36 +45233,12 @@ function init() {
 				vec3 newvec;
 			    
 				if (v.z<v.x)
-				{
-					newvec = normalize(vec3(v.y,-v.x,0.0));
-				}
-				
+				{newvec = normalize(vec3(v.y,-v.x,0.0));}
 				else
-				{
-					newvec = normalize(vec3(0.0,-v.z,v.y));
-				}
-				
+				{newvec = normalize(vec3(0.0,-v.z,v.y));}
+		
 				return newvec;
 			}
-
-			// // random function
-			// float random(vec2 xy)
-			// {
-			// 	return fract(sin(dot(xy,vec2(12.9898,78.233)))*43758.5453123);
-			// }
-
-			// // return a perpendicular vector
-			// vec3 perpvec(vec3 v) 
-			// {
-			// 	vec3 newvec;
-			    
-			// 	if (v.z<v.x)
-			// 	{newvec = vec3(v.y,-v.x,0.0);}
-			// 	else
-			// 	{newvec = vec3(0.0,-v.z,v.y);}
-				
-			// 	return newvec;
-			// }
 
 			vec4 getQuaternion(vec3 ax, float angle)
 			{
@@ -45040,7 +45262,6 @@ function init() {
 				return rotated;
 			}
 
-			
 			vec3 viewFactorDirectionGenerator(vec3 normal, vec2 randpara)
 			{	
 				// get random angle (with cos rule)
@@ -45070,7 +45291,7 @@ function init() {
 				gl_FragColor = vec4( 0.0 );
 
 				vec3 throughputColor = vec3( .0 );
-				vec3 randomPoint = vec3( .0 );
+				// vec3 randomPoint = vec3( .0 );
 
 				// hit results
 				uvec4 faceIndices = uvec4( 0u );
@@ -45079,102 +45300,33 @@ function init() {
 				float side = 1.0;
 				float dist = 0.0;
 
-				// for ( int i = 0; i < BOUNCES; i ++ ) {
 				for ( int i = 0; i <= 1; i ++ ) { // Correspond to 0 reflexion, 2 rays: 1 for camera view and 1 for pixel color
 
 					if ( ! bvhIntersectFirstHit( bvh, rayOrigin, rayDirection, faceIndices, faceNormal, barycoord, side, dist ) ) {
 
-						// float value = ( rayDirection.y + 0.5 ) / 1.5;
-						// vec3 skyColor = mix( vec3( 1.0 ), vec3( 1.0, 1.0, 1.0 ), value );
 						vec3 skyColor = vec3(1.0, 1.0, 1.0);
 
-						// gl_FragColor = vec4(throughputColor, 1.0 );
 						if (i == 1 && rayDirection.y > 0.0 ){
 							gl_FragColor = vec4(1.0, 1.0, 1.0 , 1.0 );
 						} else {
 							gl_FragColor = vec4(0.0, 0.0, 0.0 , 1.0 );
 						}
-
-						// gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(2.2));
 						// https://learnopengl.com/Advanced-Lighting/Gamma-Correction
 						
-						// gl_FragColor = vec4(
-						// 	normalize(vec3(
-						// 		random(vec2(faceNormal.x,faceNormal.y)),
-						// 		random(vec2(faceNormal.x,faceNormal.z)),
-						// 		random(vec2(faceNormal.y,faceNormal.z)))),
-						// 		1.0);
-						
-						// gl_FragColor = vec4(
-						// 	normalize(vec3(
-						// 		random(vec2(seed,seed)),
-						// 		random(vec2(seed,seed)),
-						// 		random(vec2(seed,seed)))),
-						// 		1.0);
-
-						// float randval = random(vec2(0.1,float(seed*100.0)));
-						// float randval = 1.0;
-
-						// gl_FragColor = vec4(
-						// 	(vec3(
-						// 		random(vec2(seed,1.0)),
-						// 		0.0,
-						// 		0.0)),
-						// 		1.0);
-								
-						// gl_FragColor = vec4(faceNormal, 1.0);
-
 						break;
 
 					}
-
-					// 1 / PI attenuation for physically correct lambert model
-					// https://www.rorydriscoll.com/2009/01/25/energy-conservation-in-games/
-					// throughputColor = vec3( 1.0 );
-
-					randomPoint = vec3(
-						rand( vUv + float( i + 1 ) + vec2( seed, seed ) ),
-						rand( - vUv * seed + float( i ) - seed ),
-						rand( - vUv * float( i + 1 ) - vec2( seed, - seed ) )
-					);
-					randomPoint -= 0.5;
-					randomPoint *= 2.0;
-
-					// ensure the random vector is not 0,0,0 and that it won't exactly negate
-					// the surface normal
-
-					float pointLength = max( length( randomPoint ), 1e-4 );
-					randomPoint /= pointLength;
-					randomPoint *= 0.999;
-
-					// fetch the interpolated smooth normal
-					vec3 normal =
-						side *
-						textureSampleBarycoord(
-							normalAttribute,
-							barycoord,
-							faceIndices.xyz
-						).xyz;
 
 					// adjust the hit point by the surface normal by a factor of some offset and the
 					// maximum component-wise value of the current point to accommodate floating point
 					// error as values increase.
 					vec3 point = rayOrigin + rayDirection * dist;
 					vec3 absPoint = abs( point );
-					float maxPoint = max( absPoint.x, max( absPoint.y, absPoint.z ) );
-					rayOrigin = point + faceNormal * ( maxPoint + 1.0 ) * RAY_OFFSET;
-		
-					
-					// rayDirection = faceNormal;
-					// normalize(vec3(1.0,1.0,0.0)); // normalize( normal + randomPoint );
-					// rayDirection = normalize(vec3(random(vec2(faceNormal.x,faceNormal.y)),random(vec2(faceNormal.x,faceNormal.z)),random(vec2(faceNormal.y,faceNormal.z))));
-					// rayDirection = (vec3(
-					// 	float(float(random(vec2(1.0, seed)) - 0.5)*2.0),
-					// 	float(float(random(vec2(2.0, seed)) - 0.5)*2.0),
-					// 	float(float(random(vec2(3.0, seed)) - 0.5)*2.0) ));
+					float maxPoint = max( absPoint.x, max( absPoint.y, absPoint.z ) ) + 1.0;
+					rayOrigin = point + faceNormal * ( maxPoint ) * RAY_OFFSET;
 
-					// rayDirection = viewFactorDirectionGenerator(faceNormal, vec2(seed, 2.0));
-					rayDirection = viewFactorDirectionGenerator(faceNormal, vec2(seed, abs(point.x * point.y * point.z)));
+					// VIEW FACTOR RAY DIRECTION GENERATION
+					rayDirection = normalize(viewFactorDirectionGenerator(faceNormal, vec2(seed, abs(point.x + point.y + point.z))));
 					// rayDirection = viewFactorDirectionGenerator(faceNormal, vec2(seed, abs(faceNormal.x + faceNormal.y + faceNormal.z)));
 				}
 
@@ -45190,37 +45342,141 @@ function init() {
 	rtMaterial.transparent = true;
 	rtMaterial.depthWrite = false;
 
-	// load mesh and set up material BVH attributes
-	new GLTFLoader().load( './cordoba.glb', gltf => {
 
-		let dragonMesh;
-		gltf.scene.traverse( c => {
 
-			if ( c.isMesh ) { //&& c.name === 'Dragon' 
+	// LOADER
+	
+	const input = document.getElementById("inputfile");
+	input.addEventListener("change", (event) => {
+		let loader;
+	  	const file = event.target.files[0];
+	  	const url = URL.createObjectURL(file);
+		const fileName = file.name;
+		const fileExt = fileName.split('.').pop();
+		const material = new MeshPhysicalMaterial({
+			color: 0xb2ffc8,
+			// envMap: envTexture,
+			metalness: 0.25,
+			roughness: 0.1,
+			opacity: 1.0,
+			transparent: true,
+			transmission: 0.99,
+			clearcoat: 1.0,
+			clearcoatRoughness: 0.25
+		});
 
-				dragonMesh = c;
-				c.geometry.scale( 0.1, 0.1, 0.1 ).rotateX( -Math.PI / 2 );
+		switch (fileExt) {
+			case "glb":
+				loader = new GLTFLoader();
+				loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
+					
+					// remove previous model
+					while(scene.children.length > 0){ 
+						scene.remove(scene.children[0]); 
+					}
+					
+					let subMesh;
+					gltf.scene.traverse( c => {
+						if ( c.isMesh ) { //&& c.name === 'Dragon' 
+							subMesh = c;
+							// let center = getCenterPoint(c);
+							// c.geometry.translateX(-center.x);
+							// c.geometry.translateY(-center.y);
+							// c.geometry.translateZ(-center.z);
+						}
+					} );
+		
+					// move mesh barycenter to global origin
+					let center = getCenterPoint(subMesh);
+					subMesh.geometry.translate(-center.x, -center.y, -center.z);
+					
+					mesh = new Mesh( subMesh.geometry, new MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+					
+					scene.add( mesh );
+		
+					camera.position.set( 0, 40, -60 );
+					controls.target.set( 0, 0, 0 );
+					controls.update();
+		
+					newBVH();
+					
+					resetSamples();
+		
+				});
+				break;
+			
+			case "stl":
+				loader = new STLLoader();
+				loader.load(url, (geometry) => {
+					console.log(geometry);
+					
+				
+					mesh = new Mesh(geometry, material);
 
-			}
+					// move mesh barycenter to global origin
+					let center = getCenterPoint(mesh);
+					mesh.geometry.translate(-center.x, -center.y, -center.z);
+												
+					scene.add(mesh);
 
-		} );
+					camera.position.set( 0, 40, -60 );
+					controls.target.set( 0, 0, 0 );
+					controls.update();
+		
+					newBVH();
+					
+					resetSamples();
+				},
+				// (xhr) => {
+				// 	console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+				// },
+				// (error) => {
+				// 	console.log(error)
+				// }
+				);
+				break;
 
-		const planeGeom = new PlaneGeometry( 1, 1, 1, 1 );
-		planeGeom.rotateX( - Math.PI / 2 );
+			default:
+				console.log(`Sorry, file format not recognized.`);
+		}
+		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
+	  	// loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
+			
+		// 	// remove previous model
+		// 	while(scene.children.length > 0){ 
+		// 		scene.remove(scene.children[0]); 
+		// 	}
+			
+		// 	let subMesh;
+		// 	gltf.scene.traverse( c => {
+		// 		if ( c.isMesh ) { //&& c.name === 'Dragon' 
+		// 			subMesh = c;
+		// 			// let center = getCenterPoint(c);
+		// 			// c.geometry.translateX(-center.x);
+		// 			// c.geometry.translateY(-center.y);
+		// 			// c.geometry.translateZ(-center.z);
+		// 		}
+		// 	} );
 
-		const merged = mergeBufferGeometries( [ planeGeom, dragonMesh.geometry ], false );
-		// merged = mergeBufferGeometries( [dragonMesh.geometry ], false );
-		merged.translate( 0, - 0.5, 0 );
-		// merged.rotateX(-Math.PI / 2);
+		// 	// move mesh barycenter to global origin
+		// 	let center = getCenterPoint(subMesh);
+		// 	subMesh.geometry.translate(-center.x, -center.y, -center.z);
+			
+		// 	mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+			
+		// 	scene.add( mesh );
 
-		mesh = new Mesh( merged, new MeshStandardMaterial() );
-		scene.add( mesh );
+		// 	camera.position.set( 0, 40, -60 );
+		// 	controls.target.set( 0, 0, 0 );
+		// 	controls.update();
 
-		const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
-		rtMaterial.uniforms.bvh.value.updateFrom( bvh );
-		rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
+		// 	newBVH();
+			
+		// 	resetSamples();
 
-	} );
+	});
+	// });
+
 
 
 	renderTarget = new WebGLRenderTarget( 1, 1, {
@@ -45236,30 +45492,47 @@ function init() {
 
 	} ) );
 
-	const controls = new OrbitControls( camera, renderer.domElement );
-	controls.target.set( 10, 0, 10 );
-	controls.addEventListener( 'change', () => {
 
-		resetSamples();
-
-	} );
 
 	gui = new g();
+	gui.title("SkyViewFactor-three");
 	gui.add( params, 'enableRaytracing' ).name( 'enable' );
 	gui.add( params, 'accumulate' );
 	gui.add( params, 'smoothImageScaling' );
 	gui.add( params, 'resolutionScale', 0.1, 1, 0.01 ).onChange( resize );
-	gui.add( params, 'bounces', 1, 10, 1 ).onChange( v => {
+	gui.add( params, 'importModel' ).onChange( () => {
+		
+		const input = document.getElementById("inputfile");
+		input.click();
+	
+	});
+	gui.add( params, 'changeModelUp' );
 
-		rtMaterial.defines.BOUNCES = parseInt( v );
-		rtMaterial.needsUpdate = true;
-		resetSamples();
-
-	} );
 	gui.open();
 
 	window.addEventListener( 'resize', resize, false );
+
 	resize();
+
+}
+
+function changeModelUp() {
+
+	mesh.geometry.rotateX(Math.PI/2);
+	mesh.geometry.rotateY(Math.PI/2);
+
+	newBVH();
+
+	resetSamples();
+
+
+}
+
+function newBVH(newMesh) {
+
+	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
+	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
+	rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
 }
 
@@ -45342,10 +45615,16 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
+		// Cursor color inspector
+		const read = new Float32Array( 4 );
+		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale , 1, 1, read );
+		cursor.innerHTML = Math.round(read[0]*100) + " %";
+
 	} else {
 
 		resetSamples();
 		camera.clearViewOffset();
+
 		renderer.render( scene, camera );
 
 	}
@@ -45354,5 +45633,81 @@ function render() {
 
 }
 
+function getCenterPoint(mesh) {
+	var geometry = mesh.geometry;
+	geometry.computeBoundingBox();
+	var center = new Vector3();
+	geometry.boundingBox.getCenter( center );
+	mesh.localToWorld( center );
+	return center;
+}
 
-console.log("hello world");
+// SVF Cursor
+const cursor = document.querySelector('.cursor');
+
+let mouseX = -100;
+let mouseY = -100;
+
+document.addEventListener('mousemove', (event) => {
+    mouseX = event.pageX;
+    mouseY = event.pageY;
+});
+
+let cursorX = 0;
+let cursorY = 0;
+
+let speed = 1.0; // change to increase the ease
+
+function animate() {
+    let distX = mouseX - cursorX;
+    let distY = mouseY - cursorY;
+
+    cursorX = cursorX + (distX * speed);
+    cursorY = cursorY + (distY * speed);
+
+    cursor.style.left = cursorX + 'px';
+    cursor.style.top = cursorY + 'px';
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+
+
+
+
+// IMPROVED ORBIT CONTROLS
+document.addEventListener('mousedown', (event) => {
+	// get view direction
+	let viewDirection = new Vector3();
+	camera.getWorldDirection( viewDirection );
+
+	// update only if not looking into the bottom direction
+	if (viewDirection.y > -0.999) {
+		updatecontroltarget(event);
+	}
+});
+
+function updatecontroltarget(event) {
+	// NOT USED ! pointer: normalized position of the cursor [-1, 1] x,y (0,0 is the middle of the window) 
+	pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
+	pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
+
+	// update the picking ray with the camera and pointer position
+	raycaster.setFromCamera( new Vector2(0.0, 0.0), camera );
+	// raycaster.setFromCamera( pointer, camera );
+
+	// calculate objects intersecting the picking ray
+	const intersects = raycaster.intersectObjects( scene.children );
+
+
+	// set the control target to the closest point
+	if (intersects.length > 0) {
+		if (intersects[0].distance > 0.001) {
+			controls.target.copy(intersects[0].point);
+			controls.update();
+		}
+	}
+
+}

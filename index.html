@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sky View Factor shader implemented using BVH intersections on the GPU.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+    <style type="text/css">
+        html, body {
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+            font-family: monospace;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        #output {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            padding: 5px;
+            color: #777;
+            opacity: 0.75;
+            font-family: monospace;
+            pointer-events: none;
+            white-space: pre;
+        }
+
+        #info {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            color: violet;
+            font-family: monospace;
+            text-align: center;
+            padding: 5px 0;
+        }
+
+        .cursor {
+            width: 4rem;
+            height: 2rem;
+            /* background: rgba(255, 0, 0, 0.5); */
+            /* background: rgba(255, 255, 255, 0.5); */
+            background: violet;
+            margin: 0.3rem;
+            border-radius: 2rem;
+            position: absolute;
+            color: black;
+            display: flex;
+            justify-content: center;
+            align-items:center;
+            /* vertical-align: middle; */
+            top: 0;
+            left: 0;
+            transform: translateX(0.25rem) translateY(0.25rem);
+            /* mix-blend-mode: difference; */
+        }
+
+        /* #output {
+            width: 50%;
+            height: 50%;
+            background-color: red;
+        } */
+    </style>
+</head>
+<body>
+	<div id="info">
+		Sky View Factor shader<br>implemented using BVH intersections on the GPU.
+	</div>
+    <input id = "inputfile" type="file" style = "display: none;"/>
+	<div id="output"></div>
+    <div class="cursor"></div>
+    <script type="module" src="./bundle.js"></script>
+</body>
+</html>
