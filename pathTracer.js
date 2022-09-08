@@ -14,11 +14,12 @@ import {
 
 const params = {
 	enableRaytracing: true,
-	smoothImageScaling: false,
+	smoothImageScaling: true,
 	resolutionScale: 1.0 / window.devicePixelRatio,
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
+	me: () => window.open('https://www.linkedin.com/in/antoine-bugeat-452167123/', '_blank').focus(),
 };
 
 
@@ -253,102 +254,22 @@ function init() {
 	rtMaterial.depthWrite = false;
 
 
-
-	// LOADER
+	// DEFAULT MODEL
+	loadModel("cordoue.glb","glb");
 	
+
+	// LOADER	
 	const input = document.getElementById("inputfile");
 	input.addEventListener("change", (event) => {
-		let loader;
+		
 	  	const file = event.target.files[0];
 	  	const url = URL.createObjectURL(file);
+		console.log(url);
 		const fileName = file.name;
 		const fileExt = fileName.split('.').pop();
-		const material = new THREE.MeshPhysicalMaterial({
-			color: 0xb2ffc8,
-			// envMap: envTexture,
-			metalness: 0.25,
-			roughness: 0.1,
-			opacity: 1.0,
-			transparent: true,
-			transmission: 0.99,
-			clearcoat: 1.0,
-			clearcoatRoughness: 0.25
-		});
 
-		switch (fileExt) {
-			case "glb":
-				loader = new GLTFLoader();
-				loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
-					
-					// remove previous model
-					while(scene.children.length > 0){ 
-						scene.remove(scene.children[0]); 
-					}
-					
-					let subMesh;
-					gltf.scene.traverse( c => {
-						if ( c.isMesh ) { //&& c.name === 'Dragon' 
-							subMesh = c;
-							// let center = getCenterPoint(c);
-							// c.geometry.translateX(-center.x);
-							// c.geometry.translateY(-center.y);
-							// c.geometry.translateZ(-center.z);
-						}
-					} );
+		loadModel(url, fileExt);
 		
-					// move mesh barycenter to global origin
-					let center = getCenterPoint(subMesh);
-					subMesh.geometry.translate(-center.x, -center.y, -center.z);
-					
-					mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-					
-					scene.add( mesh );
-		
-					camera.position.set( 0, 40, -60 );
-					controls.target.set( 0, 0, 0 );
-					controls.update();
-		
-					newBVH();
-					
-					resetSamples();
-		
-				});
-				break;
-			
-			case "stl":
-				loader = new STLLoader();
-				loader.load(url, (geometry) => {
-					console.log(geometry);
-					
-				
-					mesh = new THREE.Mesh(geometry, material);
-
-					// move mesh barycenter to global origin
-					let center = getCenterPoint(mesh);
-					mesh.geometry.translate(-center.x, -center.y, -center.z);
-												
-					scene.add(mesh);
-
-					camera.position.set( 0, 40, -60 );
-					controls.target.set( 0, 0, 0 );
-					controls.update();
-		
-					newBVH();
-					
-					resetSamples();
-				},
-				// (xhr) => {
-				// 	console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
-				// },
-				// (error) => {
-				// 	console.log(error)
-				// }
-				);
-				break;
-
-			default:
-				console.log(`Sorry, file format not recognized.`);
-		}
 		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
 	  	// loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 			
@@ -406,24 +327,121 @@ function init() {
 
 	gui = new GUI();
 	gui.title("SkyViewFactor-three");
-	gui.add( params, 'enableRaytracing' ).name( 'enable' );
-	gui.add( params, 'accumulate' );
-	gui.add( params, 'smoothImageScaling' );
-	gui.add( params, 'resolutionScale', 0.1, 1, 0.01 ).onChange( resize );
-	gui.add( params, 'importModel' ).onChange( () => {
+
+	const folder_model = gui.addFolder( 'Model' );
+	folder_model.add( params, 'importModel' ).onChange( () => {
 		
 		const input = document.getElementById("inputfile");
 		input.click();
 	
 	});
-	gui.add( params, 'changeModelUp' );
+	folder_model.add( params, 'changeModelUp' );
+	
+	const folder_computation = gui.addFolder( 'Computation' );
+	folder_computation.add( params, 'enableRaytracing' ).name( 'enable' );
+	folder_computation.add( params, 'accumulate' );
+	folder_computation.add( params, 'smoothImageScaling' );
+	folder_computation.add( params, 'resolutionScale', 0.1, 1, 0.01 ).onChange( resize );
+	
+	const folder_about = gui.addFolder( 'About');
+	folder_about.add( params, 'me' );
 
-	gui.open();
+	gui.open(false);
 
 	window.addEventListener( 'resize', resize, false );
 
 	resize();
 
+}
+
+function loadModel(url, fileExt) {
+	let loader;
+	const material = new THREE.MeshPhysicalMaterial({
+		color: 0xb2ffc8,
+		// envMap: envTexture,
+		metalness: 0.25,
+		roughness: 0.1,
+		opacity: 1.0,
+		transparent: true,
+		transmission: 0.99,
+		clearcoat: 1.0,
+		clearcoatRoughness: 0.25
+	});
+
+	switch (fileExt) {
+		case "glb":
+			loader = new GLTFLoader();
+			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
+				
+				// remove previous model
+				while(scene.children.length > 0){ 
+					scene.remove(scene.children[0]); 
+				}
+				
+				let subMesh;
+				gltf.scene.traverse( c => {
+					if ( c.isMesh ) { //&& c.name === 'Dragon' 
+						subMesh = c;
+						// let center = getCenterPoint(c);
+						// c.geometry.translateX(-center.x);
+						// c.geometry.translateY(-center.y);
+						// c.geometry.translateZ(-center.z);
+					}
+				} );
+	
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(subMesh);
+				subMesh.geometry.translate(-center.x, -center.y, -center.z);
+				
+				mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+				
+				scene.add( mesh );
+	
+				camera.position.set( 0, 40, -60 );
+				controls.target.set( 0, 0, 0 );
+				controls.update();
+	
+				newBVH();
+				
+				resetSamples();
+	
+			});
+			break;
+		
+		case "stl":
+			loader = new STLLoader();
+			loader.load(url, (geometry) => {
+				console.log(geometry);
+				
+			
+				mesh = new THREE.Mesh(geometry, material);
+
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
+											
+				scene.add(mesh);
+
+				camera.position.set( 0, 40, -60 );
+				controls.target.set( 0, 0, 0 );
+				controls.update();
+	
+				newBVH();
+				
+				resetSamples();
+			},
+			// (xhr) => {
+			// 	console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+			// },
+			// (error) => {
+			// 	console.log(error)
+			// }
+			);
+			break;
+
+		default:
+			console.log(`Sorry, file format not recognized.`);
+	}
 }
 
 function changeModelUp() {
