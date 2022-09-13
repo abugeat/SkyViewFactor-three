@@ -42,7 +42,7 @@ canvas {
     margin: 0.3rem;
     border-radius: 2rem;
     position: absolute;
-    color: black;
+    color: #1f1f1f;
     display: flex;
     justify-content: center;
     align-items:center;
@@ -75,7 +75,7 @@ canvas {
     align-items:center;
   }
   
-  #loading-spinner {
+#loading-spinner {
     display: inline-block;
     width: 1rem;
     height: 1rem;
@@ -84,11 +84,18 @@ canvas {
     border-top-color: rgba(255,255,255,1);
     animation: spin 1s linear infinite;
     -webkit-animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
+}
+
+@keyframes spin {
     to { -webkit-transform: rotate(360deg); }
-  }
-  @-webkit-keyframes spin {
+}
+@-webkit-keyframes spin {
     to { -webkit-transform: rotate(360deg); }
-  }
+}
+
+
+
+.lil-gui {
+	--title-background-color: #ee82ee;
+	--title-text-color: #1f1f1f;
+}
