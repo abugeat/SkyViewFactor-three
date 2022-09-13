@@ -45358,6 +45358,9 @@ function init() {
 		const fileName = file.name;
 		const fileExt = fileName.split('.').pop();
 
+		// enable loading animation
+		document.getElementById("loading").style.display = "flex";
+		
 		loadModel(url, fileExt);
 		
 		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
@@ -45494,6 +45497,9 @@ function loadModel(url, fileExt) {
 				newBVH();
 				
 				resetSamples();
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
 	
 			});
 			break;
@@ -45519,7 +45525,10 @@ function loadModel(url, fileExt) {
 				newBVH();
 				
 				resetSamples();
-			},
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
+			}
 			// (xhr) => {
 			// 	console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
 			// },
@@ -45532,6 +45541,7 @@ function loadModel(url, fileExt) {
 		default:
 			console.log(`Sorry, file format not recognized.`);
 	}
+	
 }
 
 function changeModelUp() {
