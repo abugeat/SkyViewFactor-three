@@ -45111,6 +45111,7 @@ const params = {
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
 	me: () => window.open('https://www.linkedin.com/in/antoine-bugeat-452167123/', '_blank').focus(),
+	saveIm: () => getImageData = true,
 };
 
 
@@ -45122,6 +45123,7 @@ let outputContainer;
 const raycaster = new Raycaster();
 const pointer = new Vector2();
 let rtMaterial;
+let getImageData = false;
 
 
 // THREE.Object3D.DefaultUp.set( 0, 0, 1 );
@@ -45436,6 +45438,9 @@ function init() {
 	folder_computation.add( params, 'smoothImageScaling' ).name( 'Smooth' );
 	folder_computation.add( params, 'resolutionScale', 0.1, 1, 0.01 ).name( 'Resolution scale' ).onChange( resize );
 	
+	const folder_features = gui.addFolder( 'Features' );
+	folder_features.add( params, "saveIm").name( 'Save as .PNG' );
+
 	const folder_about = gui.addFolder( 'About');
 	folder_about.add( params, 'me' ).name( 'Me' );
 
@@ -45544,6 +45549,18 @@ function loadModel(url, fileExt) {
 	
 }
 
+function saveImage() {
+	requestAnimationFrame(render);
+	// renderer.render(scene, camera);
+	let imgData = renderer.domElement.toDataURL();
+	getImageData = false;
+	// console.log(imgData);
+	const a = document.createElement("a");
+	a.href = imgData.replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+	a.download = "image.png";
+	a.click();
+}
+
 function changeModelUp() {
 
 	mesh.geometry.rotateX(Math.PI/2);
@@ -45556,7 +45573,7 @@ function changeModelUp() {
 
 }
 
-function newBVH(newMesh) {
+function newBVH() {
 
 	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
 	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
@@ -45655,6 +45672,10 @@ function render() {
 
 		renderer.render( scene, camera );
 
+	}
+
+	if (getImageData == true){
+		saveImage();
 	}
 
 	outputContainer.innerText = `samples: ${ samples }`;
