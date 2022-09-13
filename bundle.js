@@ -45358,6 +45358,9 @@ function init() {
 		const fileName = file.name;
 		const fileExt = fileName.split('.').pop();
 
+		// enable loading animation
+		document.getElementById("loading").style.display = "flex";
+		
 		loadModel(url, fileExt);
 		
 		// const url = 'https://github.com/abugeat/3Dmodels/blob/main/cordoue.glb';
@@ -45419,22 +45422,22 @@ function init() {
 	gui.title("SkyViewFactor-three");
 
 	const folder_model = gui.addFolder( 'Model' );
-	folder_model.add( params, 'importModel' ).onChange( () => {
+	folder_model.add( params, 'importModel' ).name( 'Import your model' ).onChange( () => {
 		
 		const input = document.getElementById("inputfile");
 		input.click();
 	
 	});
-	folder_model.add( params, 'changeModelUp' );
+	folder_model.add( params, 'changeModelUp' ).name( 'Change model up' );
 	
 	const folder_computation = gui.addFolder( 'Computation' );
-	folder_computation.add( params, 'enableRaytracing' ).name( 'enable' );
-	folder_computation.add( params, 'accumulate' );
-	folder_computation.add( params, 'smoothImageScaling' );
-	folder_computation.add( params, 'resolutionScale', 0.1, 1, 0.01 ).onChange( resize );
+	folder_computation.add( params, 'enableRaytracing' ).name( 'Enable' );
+	folder_computation.add( params, 'accumulate' ).name( 'Accumulate' );
+	folder_computation.add( params, 'smoothImageScaling' ).name( 'Smooth' );
+	folder_computation.add( params, 'resolutionScale', 0.1, 1, 0.01 ).name( 'Resolution scale' ).onChange( resize );
 	
 	const folder_about = gui.addFolder( 'About');
-	folder_about.add( params, 'me' );
+	folder_about.add( params, 'me' ).name( 'Me' );
 
 	gui.open(false);
 
@@ -45494,6 +45497,9 @@ function loadModel(url, fileExt) {
 				newBVH();
 				
 				resetSamples();
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
 	
 			});
 			break;
@@ -45519,7 +45525,10 @@ function loadModel(url, fileExt) {
 				newBVH();
 				
 				resetSamples();
-			},
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
+			}
 			// (xhr) => {
 			// 	console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
 			// },
@@ -45532,6 +45541,7 @@ function loadModel(url, fileExt) {
 		default:
 			console.log(`Sorry, file format not recognized.`);
 	}
+	
 }
 
 function changeModelUp() {
