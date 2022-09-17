@@ -45455,29 +45455,35 @@ function init() {
 function loadModel(url, fileExt) {
 	let loader;
 	const material = new MeshPhysicalMaterial({
-		color: 0xb2ffc8,
+		color: 0xffffff,
 		// envMap: envTexture,
 		metalness: 0.25,
 		roughness: 0.1,
 		opacity: 1.0,
-		transparent: true,
-		transmission: 0.99,
+		// transparent: true,
+		// transmission: 0.5,
+		side: DoubleSide,
+		emissive: 0xee82ee,
 		clearcoat: 1.0,
-		clearcoatRoughness: 0.25
+		clearcoatRoughness: 0.25,
+		// wireframe: true 
 	});
+
+	// remove previous model
+	while(scene.children.length > 0){ 
+		console.log("removed");
+		scene.remove(scene.children[0]); 
+	}
 
 	switch (fileExt) {
 		case "glb":
 			loader = new GLTFLoader();
 			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 				
-				// remove previous model
-				while(scene.children.length > 0){ 
-					scene.remove(scene.children[0]); 
-				}
 				
 				let subMesh;
 				gltf.scene.traverse( c => {
+					console.log("hello");
 					if ( c.isMesh ) { //&& c.name === 'Dragon' 
 						subMesh = c;
 						// let center = getCenterPoint(c);
@@ -45491,8 +45497,10 @@ function loadModel(url, fileExt) {
 				let center = getCenterPoint(subMesh);
 				subMesh.geometry.translate(-center.x, -center.y, -center.z);
 				
-				mesh = new Mesh( subMesh.geometry, new MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-				
+				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+
+				mesh = new Mesh( subMesh.geometry, material );
+
 				scene.add( mesh );
 	
 				camera.position.set( 0, 40, -60 );

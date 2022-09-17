@@ -10,6 +10,7 @@ import {
 	MeshBVH, MeshBVHUniformStruct, FloatVertexAttributeTexture,
 	shaderStructs, shaderIntersectFunction, SAH,
 } from 'three-mesh-bvh';
+import { BufferGeometryUtils, DoubleSide } from 'three';
 
 
 const params = {
@@ -265,7 +266,6 @@ function init() {
 		
 	  	const file = event.target.files[0];
 	  	const url = URL.createObjectURL(file);
-		console.log(url);
 		const fileName = file.name;
 		const fileExt = fileName.split('.').pop();
 
@@ -364,44 +364,50 @@ function init() {
 function loadModel(url, fileExt) {
 	let loader;
 	const material = new THREE.MeshPhysicalMaterial({
-		color: 0xb2ffc8,
+		color: 0xffffff,
 		// envMap: envTexture,
 		metalness: 0.25,
 		roughness: 0.1,
 		opacity: 1.0,
-		transparent: true,
-		transmission: 0.99,
+		// transparent: true,
+		// transmission: 0.5,
+		side: THREE.DoubleSide,
+		emissive: 0xee82ee,
 		clearcoat: 1.0,
-		clearcoatRoughness: 0.25
+		clearcoatRoughness: 0.25,
+		// wireframe: true 
 	});
+
+	// remove previous model
+	while(scene.children.length > 0){ 
+		scene.remove(scene.children[0]); 
+	}
 
 	switch (fileExt) {
 		case "glb":
 			loader = new GLTFLoader();
 			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 				
-				// remove previous model
-				while(scene.children.length > 0){ 
-					scene.remove(scene.children[0]); 
-				}
 				
-				let subMesh;
+				let subMeshList = [];
 				gltf.scene.traverse( c => {
-					if ( c.isMesh ) { //&& c.name === 'Dragon' 
-						subMesh = c;
-						// let center = getCenterPoint(c);
-						// c.geometry.translateX(-center.x);
-						// c.geometry.translateY(-center.y);
-						// c.geometry.translateZ(-center.z);
-					}
+
+					console.log(c);
+					// if ( c.isMesh) { //&& c.name === 'Dragon' 
+					subMeshList.push(c);
+					// }
 				} );
+
+				subMesh = BufferGeometryUtils.mergeBufferGeometries(geometries = subMeshList, useGroups = false);
 	
 				// move mesh barycenter to global origin
 				let center = getCenterPoint(subMesh);
 				subMesh.geometry.translate(-center.x, -center.y, -center.z);
 				
-				mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-				
+				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+
+				mesh = new THREE.Mesh( subMesh.geometry, material );
+
 				scene.add( mesh );
 	
 				camera.position.set( 0, 40, -60 );
@@ -420,9 +426,7 @@ function loadModel(url, fileExt) {
 		
 		case "stl":
 			loader = new STLLoader();
-			loader.load(url, (geometry) => {
-				console.log(geometry);
-				
+			loader.load(url, (geometry) => {				
 			
 				mesh = new THREE.Mesh(geometry, material);
 
@@ -463,7 +467,6 @@ function saveImage() {
 	// renderer.render(scene, camera);
 	let imgData = renderer.domElement.toDataURL();
 	getImageData = false;
-	// console.log(imgData);
 	const a = document.createElement("a");
 	a.href = imgData.replace(/^data:image\/[^;]/, 'data:application/octet-stream');
 	a.download = "image.png";
