@@ -3,14 +3,15 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+// import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // import * as Stats from 'stats.js';
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import {
 	MeshBVH, MeshBVHUniformStruct, FloatVertexAttributeTexture,
 	shaderStructs, shaderIntersectFunction, SAH,
 } from 'three-mesh-bvh';
-import { BufferGeometryUtils, DoubleSide } from 'three';
+// import { DoubleSide } from 'three';   
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
 
 
 const params = {
@@ -58,7 +59,7 @@ function init() {
 	document.body.appendChild( renderer.domElement );
 
 	outputContainer = document.getElementById( 'output' );
-
+	
 	// scene setup
 	scene = new THREE.Scene();
 
@@ -388,25 +389,29 @@ function loadModel(url, fileExt) {
 			loader = new GLTFLoader();
 			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 				
-				
+				console.log(gltf);
 				let subMeshList = [];
 				gltf.scene.traverse( c => {
 
-					console.log(c);
-					// if ( c.isMesh) { //&& c.name === 'Dragon' 
-					subMeshList.push(c);
-					// }
+					// console.log(c);
+					if ( c.isMesh) { //&& c.name === 'Dragon' 
+						subMeshList.push(c.geometry);
+						console.log(c);
+
+						// subMeshList.push(c);
+					}
 				} );
 
-				subMesh = BufferGeometryUtils.mergeBufferGeometries(geometries = subMeshList, useGroups = false);
-	
-				// move mesh barycenter to global origin
-				let center = getCenterPoint(subMesh);
-				subMesh.geometry.translate(-center.x, -center.y, -center.z);
+				console.log(subMeshList);
+
+				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subMeshList, false);  
 				
 				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+				mesh = new THREE.Mesh( meshgeometriesmerged, material );
 
-				mesh = new THREE.Mesh( subMesh.geometry, material );
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
 
 				scene.add( mesh );
 	
