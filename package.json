@@ -6,6 +6,7 @@
   "dependencies": {
     "stats.js": "^0.17.0",
     "three": "^0.142.0",
-    "three-mesh-bvh": "^0.5.14"
+    "three-mesh-bvh": "^0.5.14",
+    "web-ifc-three": "^0.0.121"
   }
 }

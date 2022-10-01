@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { IFCLoader } from "web-ifc-three/IFCLoader";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 // import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // import * as Stats from 'stats.js';
@@ -12,6 +14,7 @@ import {
 } from 'three-mesh-bvh';
 // import { DoubleSide } from 'three';   
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
+import { ObjectLoader } from 'three';
 
 
 const params = {
@@ -21,6 +24,7 @@ const params = {
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
+	invertModelUp: () => invertModelUp(),
 	me: () => window.open('https://www.linkedin.com/in/antoine-bugeat-452167123/', '_blank').focus(),
 	saveIm: () => getImageData = true,
 };
@@ -341,7 +345,9 @@ function init() {
 	
 	});
 	folder_model.add( params, 'changeModelUp' ).name( 'Change model up' );
+	folder_model.add( params, 'invertModelUp' ).name( 'Invert model up' );
 	
+
 	const folder_computation = gui.addFolder( 'Computation' );
 	folder_computation.add( params, 'enableRaytracing' ).name( 'Enable' );
 	folder_computation.add( params, 'accumulate' ).name( 'Accumulate' );
@@ -390,21 +396,15 @@ function loadModel(url, fileExt) {
 			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 				
 				console.log(gltf);
-				let subMeshList = [];
+				let subGeoList = [];
 				gltf.scene.traverse( c => {
+					if ( c.isMesh) { 
+						subGeoList.push(c.geometry);
 
-					// console.log(c);
-					if ( c.isMesh) { //&& c.name === 'Dragon' 
-						subMeshList.push(c.geometry);
-						console.log(c);
-
-						// subMeshList.push(c);
 					}
 				} );
 
-				console.log(subMeshList);
-
-				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subMeshList, false);  
+				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subGeoList, false);  
 				
 				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
 				mesh = new THREE.Mesh( meshgeometriesmerged, material );
@@ -461,6 +461,53 @@ function loadModel(url, fileExt) {
 			);
 			break;
 
+		case "obj":
+			loader = new OBJLoader();
+			loader.load(url, (object) => {
+				// console.log(object);
+				let subGeoList = [];
+				for (let i=0; i< object.children.length; i++) {
+					let children = object.children[i];
+					if (children.isMesh) {
+						subGeoList.push(children.geometry);
+					}
+				}
+
+				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subGeoList, false);  
+				
+				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+				mesh = new THREE.Mesh( meshgeometriesmerged, material );
+
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
+
+				scene.add( mesh );
+	
+				camera.position.set( 0, 40, -60 );
+				controls.target.set( 0, 0, 0 );
+				controls.update();
+	
+				newBVH();
+				
+				resetSamples();
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
+
+			}
+			);
+
+			case "ifc":
+				loader = new IFCLoader();
+				loader.ifcManager.setWasmPath("wasm/");
+				loader.load(url, (ifcModel) => {
+					console.log(ifcModel.geometry);
+				}
+				);
+			
+			break;
+
 		default:
 			console.log(`Sorry, file format not recognized.`);
 	}
@@ -488,6 +535,14 @@ function changeModelUp() {
 	resetSamples();
 
 
+}
+
+function invertModelUp() {
+	mesh.geometry.rotateX(Math.PI);
+	
+	newBVH();
+
+	resetSamples();
 }
 
 function newBVH() {
