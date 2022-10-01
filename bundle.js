@@ -45974,7 +45974,6 @@ let mouseY = -100;
 document.addEventListener('mousemove', (event) => {
     mouseX = event.pageX;
     mouseY = event.pageY;
-	console.log(mouseX,mouseY);
 });
 
 let cursorX = 0;
