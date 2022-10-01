@@ -45934,9 +45934,9 @@ function render() {
 
 		// Cursor color inspector
 		const read = new Float32Array( 4 );
-		console.log(mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale);
-		// console.log(window.devicePixelRatio);
-		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale*window.devicePixelRatio, (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio , 1, 1, read );
+		let xpos = mouseX*params.resolutionScale*window.devicePixelRatio;
+		let ypos = (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio ;
+		renderer.readRenderTargetPixels( renderTarget, xpos, ypos, 1, 1, read );
 		cursor.innerHTML = Math.round(read[0]*100) + " %";
 
 	} else {
