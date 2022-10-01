@@ -579,7 +579,9 @@ function render() {
 
 		// Cursor color inspector
 		const read = new Float32Array( 4 );
-		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale , 1, 1, read );
+		console.log(mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale);
+		// console.log(window.devicePixelRatio);
+		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale*window.devicePixelRatio, (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio , 1, 1, read );
 		cursor.innerHTML = Math.round(read[0]*100) + " %";
 
 	} else {
@@ -617,6 +619,7 @@ let mouseY = -100;
 document.addEventListener('mousemove', (event) => {
     mouseX = event.pageX;
     mouseY = event.pageY;
+	console.log(mouseX,mouseY);
 });
 
 let cursorX = 0;
@@ -657,8 +660,8 @@ document.addEventListener('mousedown', (event) => {
 
 function updatecontroltarget(event) {
 	// NOT USED ! pointer: normalized position of the cursor [-1, 1] x,y (0,0 is the middle of the window) 
-	pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
-	pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
+	// pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
+	// pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
 
 	// update the picking ray with the camera and pointer position
 	raycaster.setFromCamera( new THREE.Vector2(0.0, 0.0), camera );
