@@ -1,3 +1,53 @@
+from math import pi
+from random import random
+from re import U
+from matplotlib.pyplot import axis
+import plotly.express as px
+import numpy as np
+import math
+import plotly.graph_objects as go
+
+def perpvec(v): 
+    
+    if (abs(v[2])<abs(v[0])):
+        newvec = np.array([v[1],-v[0],0.0])
+    else:
+        newvec = np.array([0.0,-v[2],v[1]])
+
+    return newvec
+
+def getQuaternion(ax, angle):
+    half_angle = angle/2.0
+    sin_half_angle = np.sin(half_angle)
+    
+    quat = np.array([0.0,0.0,0.0,0.0])
+    quat[0] = ax[0] * sin_half_angle
+    quat[1] = ax[1] * sin_half_angle
+    quat[2] = ax[2] * sin_half_angle
+    quat[3] = np.cos(half_angle)
+    
+    return quat
+
+def rotateWithQuat(inivec, quat):
+    print(inivec)
+    print(quat)
+    tempp = np.cross(quat[0:2], inivec) + quat[3] * inivec
+    rotated = inivec + 2.0*np.cross(quat[0:2], tempp)
+
+    return rotated
+    
+randAngCos = math.asin(random())
+normal = np.array([0.0,0.0,-1.0])
+arbitraryax = perpvec(normal)
+quatOne = getQuaternion(arbitraryax, randAngCos)
+newDirection = rotateWithQuat(normal, quatOne)
+print(newDirection)
+
+
+
+
+
+
 # # float random (vec2 st) {
 # #     return fract(sin(dot(st.xy,
 # #                          vec2(12.9898,78.233)))*
@@ -37,23 +87,23 @@
 # print(statistics.mean(r))
 
 
-from math import pi
-from random import random
-from re import U
-from matplotlib.pyplot import axis
-import plotly.express as px
-import numpy as np
-import math
-import plotly.graph_objects as go
+# from math import pi
+# from random import random
+# from re import U
+# from matplotlib.pyplot import axis
+# import plotly.express as px
+# import numpy as np
+# import math
+# import plotly.graph_objects as go
 
-quant = 10000
-r=[]
-for i in range(quant):
-    r.append(np.arccos(random())*180/pi)
+# quant = 10000
+# r=[]
+# for i in range(quant):
+#     r.append(np.arccos(random())*180/pi)
 
-fig = px.scatter(x=range(quant), y=r)
-fig.show()
-print(np.mean(r))
+# fig = px.scatter(x=range(quant), y=r)
+# fig.show()
+# print(np.mean(r))
 
 
 

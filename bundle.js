@@ -102896,7 +102896,7 @@ function init() {
 			{
 				vec3 newvec;
 			    
-				if (v.z<v.x)
+				if (abs(v.z)<abs(v.x))
 				{newvec = normalize(vec3(v.y,-v.x,0.0));}
 				else
 				{newvec = normalize(vec3(0.0,-v.z,v.y));}
