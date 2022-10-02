@@ -102813,6 +102813,7 @@ function init() {
 	scene = new Scene();
 
 	const axesHelper = new AxesHelper( 100 );
+	axesHelper.name = 'axesHelper';
 	scene.add( axesHelper );
 
 	// const light = new THREE.DirectionalLight( 0xffffff, 2 );
@@ -103131,9 +103132,15 @@ function loadModel(url, fileExt) {
 	});
 
 	// remove previous model
-	while(scene.children.length > 0){ 
-		scene.remove(scene.children[0]); 
+	for (let c=0; c<scene.children.length; c++) {
+		if (scene.children[c].name != 'axesHelper') {
+			scene.remove(scene.children[c]);
+		}
 	}
+	// while(scene.children.length > 0){
+	// 	console.log(scene.children[0].name != 'axesHelper');
+		 
+	// }
 
 	switch (fileExt) {
 		case "glb":
@@ -103229,6 +103236,8 @@ function loadModel(url, fileExt) {
 
 				scene.add( mesh );
 	
+				console.log(mesh);
+
 				camera.position.set( 0, 40, -60 );
 				controls.target.set( 0, 0, 0 );
 				controls.update();
@@ -103242,15 +103251,40 @@ function loadModel(url, fileExt) {
 
 			}
 			);
+			break;
 
-			case "ifc":
-				loader = new IFCLoader();
-				loader.ifcManager.setWasmPath("wasm/");
-				loader.load(url, (ifcModel) => {
-					console.log(ifcModel.geometry);
-				}
-				);
-			
+		case "ifc":
+			loader = new IFCLoader();
+			loader.ifcManager.setWasmPath("wasm/");
+			loader.load(url, (ifcModel) => {
+				console.log(ifcModel);
+				
+				// TO avoid Multi-root error when building bvh!
+				ifcModel.geometry.clearGroups(); 
+
+				mesh = new Mesh(ifcModel.geometry, material);
+
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
+											
+				scene.add(mesh);
+
+				camera.position.set( 0, 40, -60 );
+				controls.target.set( 0, 0, 0 );
+				controls.update();
+
+				console.log(mesh);
+				
+				newBVH();
+				console.log("hi");
+				
+				resetSamples();
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
+			}
+			);
 			break;
 
 		default:
@@ -103292,7 +103326,7 @@ function invertModelUp() {
 
 function newBVH() {
 
-	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
+	const bvh = new MeshBVH( mesh.geometry, {maxDepth: 400, verbose: true, maxLeafTris: 1, strategy: SAH } );
 	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
 	rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
