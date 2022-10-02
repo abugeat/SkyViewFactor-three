@@ -2,14 +2,19 @@ import * as THREE from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { IFCLoader } from "web-ifc-three/IFCLoader";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+// import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // import * as Stats from 'stats.js';
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import {
 	MeshBVH, MeshBVHUniformStruct, FloatVertexAttributeTexture,
-	shaderStructs, shaderIntersectFunction, SAH,
+	shaderStructs, shaderIntersectFunction, SAH
 } from 'three-mesh-bvh';
+// import { DoubleSide } from 'three';   
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
+import { MeshNormalMaterial, ObjectLoader } from 'three';
 
 
 const params = {
@@ -19,6 +24,7 @@ const params = {
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
+	invertModelUp: () => invertModelUp(),
 	me: () => window.open('https://www.linkedin.com/in/antoine-bugeat-452167123/', '_blank').focus(),
 	saveIm: () => getImageData = true,
 };
@@ -57,11 +63,12 @@ function init() {
 	document.body.appendChild( renderer.domElement );
 
 	outputContainer = document.getElementById( 'output' );
-
+	
 	// scene setup
 	scene = new THREE.Scene();
 
 	const axesHelper = new THREE.AxesHelper( 100 );
+	axesHelper.name = 'axesHelper';
 	scene.add( axesHelper );
 
 	// const light = new THREE.DirectionalLight( 0xffffff, 2 );
@@ -144,7 +151,7 @@ function init() {
 			{
 				vec3 newvec;
 			    
-				if (v.z<v.x)
+				if (abs(v.z)<abs(v.x))
 				{newvec = normalize(vec3(v.y,-v.x,0.0));}
 				else
 				{newvec = normalize(vec3(0.0,-v.z,v.y));}
@@ -265,7 +272,6 @@ function init() {
 		
 	  	const file = event.target.files[0];
 	  	const url = URL.createObjectURL(file);
-		console.log(url);
 		const fileName = file.name;
 		const fileExt = fileName.split('.').pop();
 
@@ -340,7 +346,9 @@ function init() {
 	
 	});
 	folder_model.add( params, 'changeModelUp' ).name( 'Change model up' );
+	folder_model.add( params, 'invertModelUp' ).name( 'Invert model up' );
 	
+
 	const folder_computation = gui.addFolder( 'Computation' );
 	folder_computation.add( params, 'enableRaytracing' ).name( 'Enable' );
 	folder_computation.add( params, 'accumulate' ).name( 'Accumulate' );
@@ -364,44 +372,53 @@ function init() {
 function loadModel(url, fileExt) {
 	let loader;
 	const material = new THREE.MeshPhysicalMaterial({
-		color: 0xb2ffc8,
+		color: 0xffffff,
 		// envMap: envTexture,
 		metalness: 0.25,
 		roughness: 0.1,
 		opacity: 1.0,
-		transparent: true,
-		transmission: 0.99,
+		// transparent: true,
+		// transmission: 0.5,
+		side: THREE.DoubleSide,
+		emissive: 0xee82ee,
 		clearcoat: 1.0,
-		clearcoatRoughness: 0.25
+		clearcoatRoughness: 0.25,
+		// wireframe: true 
 	});
+
+	// remove previous model
+	for (let c=0; c<scene.children.length; c++) {
+		if (scene.children[c].name != 'axesHelper') {
+			scene.remove(scene.children[c]);
+		}
+	}
+	// while(scene.children.length > 0){
+	// 	console.log(scene.children[0].name != 'axesHelper');
+		 
+	// }
 
 	switch (fileExt) {
 		case "glb":
 			loader = new GLTFLoader();
 			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 				
-				// remove previous model
-				while(scene.children.length > 0){ 
-					scene.remove(scene.children[0]); 
-				}
-				
-				let subMesh;
+				let subGeoList = [];
 				gltf.scene.traverse( c => {
-					if ( c.isMesh ) { //&& c.name === 'Dragon' 
-						subMesh = c;
-						// let center = getCenterPoint(c);
-						// c.geometry.translateX(-center.x);
-						// c.geometry.translateY(-center.y);
-						// c.geometry.translateZ(-center.z);
+					if ( c.isMesh) { 
+						subGeoList.push(c.geometry);
+
 					}
 				} );
-	
+
+				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subGeoList, false);  
+				
+				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+				mesh = new THREE.Mesh( meshgeometriesmerged, material );
+
 				// move mesh barycenter to global origin
-				let center = getCenterPoint(subMesh);
-				subMesh.geometry.translate(-center.x, -center.y, -center.z);
-				
-				mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
-				
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
+
 				scene.add( mesh );
 	
 				camera.position.set( 0, 40, -60 );
@@ -420,9 +437,7 @@ function loadModel(url, fileExt) {
 		
 		case "stl":
 			loader = new STLLoader();
-			loader.load(url, (geometry) => {
-				console.log(geometry);
-				
+			loader.load(url, (geometry) => {				
 			
 				mesh = new THREE.Mesh(geometry, material);
 
@@ -452,6 +467,74 @@ function loadModel(url, fileExt) {
 			);
 			break;
 
+		case "obj":
+			loader = new OBJLoader();
+			loader.load(url, (object) => {
+				// console.log(object);
+				let subGeoList = [];
+				for (let i=0; i< object.children.length; i++) {
+					let children = object.children[i];
+					if (children.isMesh) {
+						subGeoList.push(children.geometry);
+					}
+				}
+
+				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subGeoList, false);  
+				
+				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
+				mesh = new THREE.Mesh( meshgeometriesmerged, material );
+
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
+
+				scene.add( mesh );
+	
+				camera.position.set( 0, 40, -60 );
+				controls.target.set( 0, 0, 0 );
+				controls.update();
+	
+				newBVH();
+				
+				resetSamples();
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
+
+			}
+			);
+			break;
+
+		case "ifc":
+			loader = new IFCLoader();
+			loader.ifcManager.setWasmPath("wasm/");
+			loader.load(url, (ifcModel) => {
+				
+				// TO avoid Multi-root error when building bvh!
+				ifcModel.geometry.clearGroups(); 
+
+				mesh = new THREE.Mesh(ifcModel.geometry, material);
+
+				// move mesh barycenter to global origin
+				let center = getCenterPoint(mesh);
+				mesh.geometry.translate(-center.x, -center.y, -center.z);
+											
+				scene.add(mesh);
+
+				camera.position.set( 0, 40, -60 );
+				controls.target.set( 0, 0, 0 );
+				controls.update();
+				
+				newBVH();
+				
+				resetSamples();
+
+				// disable loading animation
+				document.getElementById("loading").style.display = "none";
+			}
+			);
+			break;
+
 		default:
 			console.log(`Sorry, file format not recognized.`);
 	}
@@ -463,7 +546,6 @@ function saveImage() {
 	// renderer.render(scene, camera);
 	let imgData = renderer.domElement.toDataURL();
 	getImageData = false;
-	// console.log(imgData);
 	const a = document.createElement("a");
 	a.href = imgData.replace(/^data:image\/[^;]/, 'data:application/octet-stream');
 	a.download = "image.png";
@@ -482,9 +564,17 @@ function changeModelUp() {
 
 }
 
+function invertModelUp() {
+	mesh.geometry.rotateX(Math.PI);
+	
+	newBVH();
+
+	resetSamples();
+}
+
 function newBVH() {
 
-	const bvh = new MeshBVH( mesh.geometry, { maxLeafTris: 1, strategy: SAH } );
+	const bvh = new MeshBVH( mesh.geometry, {maxDepth: 400, verbose: true, maxLeafTris: 1, strategy: SAH } );
 	rtMaterial.uniforms.bvh.value.updateFrom( bvh );
 	rtMaterial.uniforms.normalAttribute.value.updateFrom( mesh.geometry.attributes.normal );
 
@@ -571,7 +661,9 @@ function render() {
 
 		// Cursor color inspector
 		const read = new Float32Array( 4 );
-		renderer.readRenderTargetPixels( renderTarget, mouseX*params.resolutionScale, (window.innerHeight * params.resolutionScale) - mouseY*params.resolutionScale , 1, 1, read );
+		let xpos = mouseX*params.resolutionScale*window.devicePixelRatio;
+		let ypos = (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio ;
+		renderer.readRenderTargetPixels( renderTarget, xpos, ypos, 1, 1, read );
 		cursor.innerHTML = Math.round(read[0]*100) + " %";
 
 	} else {
@@ -649,8 +741,8 @@ document.addEventListener('mousedown', (event) => {
 
 function updatecontroltarget(event) {
 	// NOT USED ! pointer: normalized position of the cursor [-1, 1] x,y (0,0 is the middle of the window) 
-	pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
-	pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
+	// pointer.x = (event.pageX / window.innerWidth) * 2 - 1;
+	// pointer.y = - (event.pageY / window.innerHeight) * 2 + 1;
 
 	// update the picking ray with the camera and pointer position
 	raycaster.setFromCamera( new THREE.Vector2(0.0, 0.0), camera );
