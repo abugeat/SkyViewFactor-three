@@ -10,7 +10,12 @@
 		Sky View Factor shader<br>implemented using BVH intersections on the GPU.
 	</div> -->
     <input id = "inputfile" type="file" accept=".stl,.glb,.obj,.ifc" style = "display: none;"/>
-	<div id="output"></div>
+	<div id="gradient">
+        <span class = "tickgradient" id = "cent">100%</span>
+        <span class = "tickgradient" id = "cinquante">50%</span>
+        <span class = "tickgradient" id = "zero">0%</span>
+    </div>
+    <div id="output"></div>
     <div class="cursor"></div>
     <script type="module" src="./bundle.js"></script>
     <div id="loading" style="display: none;">

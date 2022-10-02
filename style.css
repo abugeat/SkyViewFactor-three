@@ -14,7 +14,7 @@ canvas {
 #output {
     position: absolute;
     bottom: 0;
-    left: 0;
+    right: 0;
     padding: 5px;
     color: #777;
     opacity: 0.75;
@@ -84,6 +84,36 @@ canvas {
     border-top-color: rgba(255,255,255,1);
     animation: spin 1s linear infinite;
     -webkit-animation: spin 1s linear infinite;
+}
+
+#gradient {
+    position: absolute;
+    display: flex;
+    writing-mode: vertical-rl;
+    flex-direction: row;
+    justify-content: space-between;
+    height: 100%;
+    width: 1rem;
+    background-color: white;
+    background-image:
+        linear-gradient(
+            to bottom, 
+            #ffffff, #000000
+        );
+}
+
+.tickgradient {
+    height: 5rem;
+}
+
+
+#cinquante {
+    text-align: center;
+}
+
+#zero {
+    color:white;
+    text-align: right;
 }
 
 @keyframes spin {
