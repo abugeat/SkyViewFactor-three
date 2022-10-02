@@ -103147,7 +103147,6 @@ function loadModel(url, fileExt) {
 			loader = new GLTFLoader();
 			loader.load(url, (gltf) => { //./cordoba.glb sacrecoeur.glb cordoue.glb torino.glb
 				
-				console.log(gltf);
 				let subGeoList = [];
 				gltf.scene.traverse( c => {
 					if ( c.isMesh) { 
@@ -103236,8 +103235,6 @@ function loadModel(url, fileExt) {
 
 				scene.add( mesh );
 	
-				console.log(mesh);
-
 				camera.position.set( 0, 40, -60 );
 				controls.target.set( 0, 0, 0 );
 				controls.update();
@@ -103257,7 +103254,6 @@ function loadModel(url, fileExt) {
 			loader = new IFCLoader();
 			loader.ifcManager.setWasmPath("wasm/");
 			loader.load(url, (ifcModel) => {
-				console.log(ifcModel);
 				
 				// TO avoid Multi-root error when building bvh!
 				ifcModel.geometry.clearGroups(); 
@@ -103273,11 +103269,8 @@ function loadModel(url, fileExt) {
 				camera.position.set( 0, 40, -60 );
 				controls.target.set( 0, 0, 0 );
 				controls.update();
-
-				console.log(mesh);
 				
 				newBVH();
-				console.log("hi");
 				
 				resetSamples();
 
