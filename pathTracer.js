@@ -26,6 +26,7 @@ const params = {
 	changeModelUp: () => changeModelUp(),
 	invertModelUp: () => invertModelUp(),
 	me: () => window.open('https://www.linkedin.com/in/antoine-bugeat-452167123/', '_blank').focus(),
+	colorbar: true,
 	saveIm: () => getImageData = true,
 };
 
@@ -39,6 +40,7 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let rtMaterial;
 let getImageData = false;
+let controlsLocked = false;
 
 
 // THREE.Object3D.DefaultUp.set( 0, 0, 1 );
@@ -88,7 +90,9 @@ function init() {
 	controls.target.set( 0, 0, 0 );
 	controls.update();
 	controls.addEventListener( 'change', () => {
-		resetSamples();
+		if (!controlsLocked) {
+			resetSamples();
+		}
 	});
 
 
@@ -356,6 +360,13 @@ function init() {
 	folder_computation.add( params, 'resolutionScale', 0.1, 1, 0.01 ).name( 'Resolution scale' ).onChange( resize );
 	
 	const folder_features = gui.addFolder( 'Features' );
+	folder_features.add( params, "colorbar").name( 'Show SVF scale').onChange( () => {
+		if (params.colorbar) {
+			document.getElementById("gradient").style.display = 'flex'; 
+		} else {
+			document.getElementById("gradient").style.display = 'none'; 
+		}
+	});
 	folder_features.add( params, "saveIm").name( 'Save as .PNG' );
 
 	const folder_about = gui.addFolder( 'About');
@@ -582,6 +593,7 @@ function newBVH() {
 
 function resetSamples() {
 
+	console.log("hello");
 	samples = 0;
 
 }
@@ -659,15 +671,7 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
-		// Cursor color inspector
-		const read = new Float32Array( 4 );
-		let xpos = mouseX*params.resolutionScale*window.devicePixelRatio;
-		let ypos = (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio ;
-		renderer.readRenderTargetPixels( renderTarget, xpos, ypos, 1, 1, read );
-		cursor.innerHTML = Math.round(read[0]*100) + " %";
-
-		// svf level colorbar
-		document.getElementById("svfcursorlevel").style.bottom = (read[0]*100).toFixed(1).toString()+"%";
+		updateSVFCursorvalue();
 
 	} else {
 
@@ -684,6 +688,18 @@ function render() {
 
 	outputContainer.innerText = `samples: ${ samples }`;
 
+}
+
+function updateSVFCursorvalue() {
+	// Cursor color inspector
+	const read = new Float32Array( 4 );
+	let xpos = mouseX*params.resolutionScale*window.devicePixelRatio;
+	let ypos = (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio ;
+	renderer.readRenderTargetPixels( renderTarget, xpos, ypos, 1, 1, read );
+	cursor.innerHTML = Math.round(read[0]*100) + " %";
+
+	// svf level colorbar
+	document.getElementById("svfcursorlevel").style.bottom = (read[0]*100).toFixed(1).toString()+"%";
 }
 
 function getCenterPoint(mesh) {
@@ -765,3 +781,12 @@ function updatecontroltarget(event) {
 
 }
 
+
+// disable controls when hover lil-gui
+let lilguidiv = document.getElementsByClassName("lil-gui root")[0];
+lilguidiv.addEventListener('mouseover', (event) => {
+	controlsLocked = true;
+});
+lilguidiv.addEventListener('mouseout', (event) => {
+	controlsLocked = false;
+});
