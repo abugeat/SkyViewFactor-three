@@ -695,11 +695,20 @@ function updateSVFCursorvalue() {
 	const read = new Float32Array( 4 );
 	let xpos = mouseX*params.resolutionScale*window.devicePixelRatio;
 	let ypos = (window.innerHeight * params.resolutionScale*window.devicePixelRatio) - mouseY*params.resolutionScale*window.devicePixelRatio ;
+	const readtop = new Float32Array( 4 );
+	const readbottom = new Float32Array( 4 );
+	const readleft = new Float32Array( 4 );
+	const readright = new Float32Array( 4 );
 	renderer.readRenderTargetPixels( renderTarget, xpos, ypos, 1, 1, read );
-	cursor.innerHTML = Math.round(read[0]*100) + " %";
+	renderer.readRenderTargetPixels( renderTarget, xpos, ypos-1, 1, 1, readbottom );
+	renderer.readRenderTargetPixels( renderTarget, xpos, ypos+1, 1, 1, readtop );
+	renderer.readRenderTargetPixels( renderTarget, xpos-1, ypos, 1, 1, readleft );
+	renderer.readRenderTargetPixels( renderTarget, xpos+1, ypos, 1, 1, readright );
+	const readcolor = (read[0] + readbottom[0] + readtop[0] + readleft[0] + readright[0]) / 5;
+	cursor.innerHTML = Math.round(readcolor*100) + " %";
 
 	// svf level colorbar
-	document.getElementById("svfcursorlevel").style.bottom = (read[0]*100).toFixed(1).toString()+"%";
+	document.getElementById("svfcursorlevel").style.bottom = (readcolor*100).toFixed(1).toString()+"%";
 }
 
 function getCenterPoint(mesh) {
