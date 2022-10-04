@@ -103411,6 +103411,9 @@ function render() {
 		renderer.readRenderTargetPixels( renderTarget, xpos, ypos, 1, 1, read );
 		cursor.innerHTML = Math.round(read[0]*100) + " %";
 
+		// svf level colorbar
+		document.getElementById("svfcursorlevel").style.bottom = (read[0]*100).toFixed(1).toString()+"%";
+
 	} else {
 
 		resetSamples();
