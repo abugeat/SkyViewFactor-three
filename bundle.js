@@ -102765,7 +102765,7 @@ class t{constructor(i,e,s,n,r="div"){this.parent=i,this.object=e,this.property=s
 const params = {
 	enableRaytracing: true,
 	smoothImageScaling: true,
-	resolutionScale: 1.0 / window.devicePixelRatio,
+	resolutionScale: 1.0, // / window.devicePixelRatio,
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
@@ -102956,10 +102956,7 @@ function init() {
 				ndcToCameraRay( ndc, cameraWorldMatrix, invProjectionMatrix, rayOrigin, rayDirection );
 
 				// Lambertian render
-				gl_FragColor = vec4( 0.0 );
-
-				vec3 throughputColor = vec3( .0 );
-				// vec3 randomPoint = vec3( .0 );
+				gl_FragColor = vec4( 0.0,0.0,0.0,1.0 );
 
 				// hit results
 				uvec4 faceIndices = uvec4( 0u );
@@ -102972,18 +102969,23 @@ function init() {
 
 					if ( ! bvhIntersectFirstHit( bvh, rayOrigin, rayDirection, faceIndices, faceNormal, barycoord, side, dist ) ) {
 
-						vec3 skyColor = vec3(1.0, 1.0, 1.0);
+						//vec3 skyColor = vec3(1.0, 1.0, 1.0);
 
-						if (i == 1 && rayDirection.y > 0.0 ){
-							gl_FragColor = vec4(1.0, 1.0, 1.0 , 1.0 );
-						} else {
-							gl_FragColor = vec4(0.0, 0.0, 0.0 , 1.0 );
-						}
+						if (i == 1) {
+							if (rayDirection.y > 0.0) {
+								gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+							} 
+							// else
+							// {
+							// 	gl_FragColor = vec4(-0.5, -0.5, -0.5, 1.0);
+							// }
+						} 
+
 						// https://learnopengl.com/Advanced-Lighting/Gamma-Correction
 						
 						break;
 
-					}
+					} 
 
 					// adjust the hit point by the surface normal by a factor of some offset and the
 					// maximum component-wise value of the current point to accommodate floating point
