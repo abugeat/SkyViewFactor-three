@@ -102772,6 +102772,7 @@ const params = {
 	invertModelUp: () => invertModelUp(),
 	me: () => window.open('https://www.linkedin.com/in/antoine-bugeat-452167123/', '_blank').focus(),
 	colorbar: true,
+	maxSVF: 100,
 	saveIm: () => getImageData = true,
 };
 
@@ -102844,9 +102845,9 @@ function init() {
 	// SHADER
 	rtMaterial = new ShaderMaterial( {
 
-		// defines: {
-		// 	BOUNCES: 5,
-		// },
+		defines: {
+			MAXSVFMOD: 1.0,
+		},
 
 		uniforms: {
 			bvh: { value: new MeshBVHUniformStruct() },
@@ -102973,7 +102974,7 @@ function init() {
 
 						if (i == 1) {
 							if (rayDirection.y > 0.0) {
-								gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+								gl_FragColor = vec4(MAXSVFMOD, MAXSVFMOD, MAXSVFMOD, 1.0);
 							} 
 							// else
 							// {
@@ -103109,11 +103110,12 @@ function init() {
 	const folder_features = gui.addFolder( 'Features' );
 	folder_features.add( params, "colorbar").name( 'Show SVF scale').onChange( () => {
 		if (params.colorbar) {
-			document.getElementById("gradient").style.display = 'flex'; 
+			colorbar.style.display = 'flex'; 
 		} else {
-			document.getElementById("gradient").style.display = 'none'; 
+			colorbar.style.display = 'none'; 
 		}
 	});
+	folder_features.add( params, 'maxSVF', 2, 100, 2 ).name( 'Max SVF value' ).onChange( changeMaxSVF );
 	folder_features.add( params, "saveIm").name( 'Save as .PNG' );
 
 	const folder_about = gui.addFolder( 'About');
@@ -103125,6 +103127,19 @@ function init() {
 
 	resize();
 
+}
+
+function changeMaxSVF() {
+	// change scale text
+	let centSVF = document.getElementById("cent");
+	let cinquanteSVF = document.getElementById("cinquante");
+	centSVF.innerHTML = params.maxSVF + "%";
+	cinquanteSVF.innerHTML = Math.round(params.maxSVF/2) + "%";
+
+	// change shader max
+	rtMaterial.defines.MAXSVFMOD = parseFloat( 100/params.maxSVF );
+		rtMaterial.needsUpdate = true;
+		resetSamples();
 }
 
 function loadModel(url, fileExt) {
@@ -103340,7 +103355,6 @@ function newBVH() {
 
 function resetSamples() {
 
-	console.log("hello");
 	samples = 0;
 
 }
@@ -103418,10 +103432,13 @@ function render() {
 		renderer.autoClear = true;
 		samples ++;
 
+		// document.getElementsByClassName("cursor").style.display = 'flex';
+		animate();
 		updateSVFCursorvalue();
 
 	} else {
-
+		
+		// document.getElementsByClassName("cursor").style.display = 'none';
 		resetSamples();
 		camera.clearViewOffset();
 
@@ -103452,7 +103469,7 @@ function updateSVFCursorvalue() {
 	renderer.readRenderTargetPixels( renderTarget, xpos-1, ypos, 1, 1, readleft );
 	renderer.readRenderTargetPixels( renderTarget, xpos+1, ypos, 1, 1, readright );
 	const readcolor = (read[0] + readbottom[0] + readtop[0] + readleft[0] + readright[0]) / 5;
-	cursor.innerHTML = Math.round(readcolor*100) + " %";
+	cursor.innerHTML = Math.round((readcolor*100) * (params.maxSVF/100)) + " %";
 
 	// svf level colorbar
 	document.getElementById("svfcursorlevel").style.bottom = (readcolor*100).toFixed(1).toString()+"%";
@@ -103467,8 +103484,13 @@ function getCenterPoint(mesh) {
 	return center;
 }
 
+
+
 // SVF Cursor
 const cursor = document.querySelector('.cursor');
+
+// Colorbar 
+const colorbar = document.querySelector('#gradient');
 
 let mouseX = -100;
 let mouseY = -100;
@@ -103484,7 +103506,23 @@ let cursorY = 0;
 let speed = 1.0; // change to increase the ease
 
 function animate() {
-    let distX = mouseX - cursorX;
+
+	// enable/disable cursor
+	if (params.enableRaytracing) {
+		cursor.style.display = 'flex';
+	} else {
+		cursor.style.display = 'none';
+	}
+
+	// enable/disable 
+	if (params.enableRaytracing && params.colorbar) {
+		colorbar.style.display = 'flex';
+	} else {
+		colorbar.style.display = 'none';
+	}
+
+
+	let distX = mouseX - cursorX;
     let distY = mouseY - cursorY;
 
     cursorX = cursorX + (distX * speed);
@@ -103495,8 +103533,6 @@ function animate() {
 
     requestAnimationFrame(animate);
 }
-
-animate();
 
 
 
