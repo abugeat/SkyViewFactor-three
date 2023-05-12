@@ -20,7 +20,7 @@ import { MeshNormalMaterial, ObjectLoader } from 'three';
 const params = {
 	enableRaytracing: true,
 	smoothImageScaling: true,
-	resolutionScale: 1.0, // / window.devicePixelRatio,
+	resolutionScale: 0.5, // / window.devicePixelRatio,
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
