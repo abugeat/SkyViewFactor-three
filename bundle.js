@@ -102765,7 +102765,7 @@ class t{constructor(i,e,s,n,r="div"){this.parent=i,this.object=e,this.property=s
 const params = {
 	enableRaytracing: true,
 	smoothImageScaling: true,
-	resolutionScale: 1.0, // / window.devicePixelRatio,
+	resolutionScale: 0.5, // / window.devicePixelRatio,
 	accumulate: true,
 	importModel: () => document.getElementById("inputfile").click(),
 	changeModelUp: () => changeModelUp(),
