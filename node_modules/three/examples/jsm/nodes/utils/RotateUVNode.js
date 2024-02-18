@@ -1,9 +1,10 @@
 import TempNode from '../core/TempNode.js';
-import { vec2, add, sub, mul, cos, sin } from '../shadernode/ShaderNodeBaseElements.js';
+import { addNodeClass } from '../core/Node.js';
+import { addNodeElement, nodeProxy, vec2 } from '../shadernode/ShaderNode.js';
 
 class RotateUVNode extends TempNode {
 
-	constructor( uvNode, rotationNode, centerNode = vec2( .5 ) ) {
+	constructor( uvNode, rotationNode, centerNode = vec2( 0.5 ) ) {
 
 		super( 'vec2' );
 
@@ -13,20 +14,22 @@ class RotateUVNode extends TempNode {
 
 	}
 
-	construct() {
+	setup() {
 
 		const { uvNode, rotationNode, centerNode } = this;
 
-		const cosAngle = cos( rotationNode );
-		const sinAngle = sin( rotationNode );
+		const vector = uvNode.sub( centerNode );
 
-		return vec2(
-			add( add( mul( cosAngle, sub( uvNode.x, centerNode.x ) ), mul( sinAngle, sub( uvNode.y, centerNode.y ) ) ), centerNode.x ),
-			add( sub( mul( cosAngle, sub( uvNode.y, centerNode.y ) ), mul( sinAngle, sub( uvNode.x, centerNode.x ) ) ), centerNode.y )
-		);
+		return vector.rotate( rotationNode ).add( centerNode );
 
 	}
 
 }
 
 export default RotateUVNode;
+
+export const rotateUV = nodeProxy( RotateUVNode );
+
+addNodeElement( 'rotateUV', rotateUV );
+
+addNodeClass( 'RotateUVNode', RotateUVNode );

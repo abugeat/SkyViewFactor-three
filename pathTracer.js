@@ -3,18 +3,21 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { IFCLoader } from "web-ifc-three/IFCLoader";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-// import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-// import * as Stats from 'stats.js';
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import {
 	MeshBVH, MeshBVHUniformStruct, FloatVertexAttributeTexture,
 	shaderStructs, shaderIntersectFunction, SAH
 } from 'three-mesh-bvh';
 // import { DoubleSide } from 'three';   
-import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { MeshNormalMaterial, ObjectLoader } from 'three';
+
+import Stats from "three/examples/jsm/libs/stats.module.js";
+
+const stats = new Stats()
+stats.showPanel(0) // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild(stats.dom)
 
 
 const params = {
@@ -62,7 +65,9 @@ function init() {
 	// https://stackoverflow.com/questions/69345609/three-js-textures-become-grayish-with-renderer-outputencoding-srgbencoding
 	// https://learnopengl.com/Advanced-Lighting/Gamma-Correction
 	// renderer.outputEncoding = THREE.sRGBEncoding;
-	renderer.outputEncoding = THREE.LinearEncoding; 
+	// renderer.outputEncoding = THREE.LinearEncoding;   
+	renderer.outputColorSpace = THREE.LinearSRGBColorSpace; 
+
 	document.body.appendChild( renderer.domElement );
 
 	outputContainer = document.getElementById( 'output' );
@@ -143,6 +148,9 @@ function init() {
 			uniform BVH bvh;
 			uniform float seed;
 			uniform float opacity;
+
+			uniform vec3 position;
+
 			varying vec2 vUv;
 
 			// random function
@@ -220,6 +228,15 @@ function init() {
 				vec3 barycoord = vec3( 0.0 );
 				float side = 1.0;
 				float dist = 0.0;
+
+
+				// world coordinate of pixel
+				// gl_Position = gl_ProjectionMatrix * view_matrix * model_matrix * gl_Vertex;
+				
+				
+				// gl_FragColor = vec4(position, 1.0);
+
+
 
 				for ( int i = 0; i <= 1; i ++ ) { // Correspond to 0 reflexion, 2 rays: 1 for camera view and 1 for pixel color
 
@@ -438,7 +455,7 @@ function loadModel(url, fileExt) {
 					}
 				} );
 
-				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subGeoList, false);  
+				let meshgeometriesmerged = BufferGeometryUtils.mergeGeometries(subGeoList, false);  
 				
 				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
 				mesh = new THREE.Mesh( meshgeometriesmerged, material );
@@ -507,7 +524,7 @@ function loadModel(url, fileExt) {
 					}
 				}
 
-				let meshgeometriesmerged = BufferGeometryUtils.mergeBufferGeometries(subGeoList, false);  
+				let meshgeometriesmerged = BufferGeometryUtils.mergeGeometries(subGeoList, false);  
 				
 				// mesh = new THREE.Mesh( subMesh.geometry, new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true }) );
 				mesh = new THREE.Mesh( meshgeometriesmerged, material );
@@ -529,36 +546,6 @@ function loadModel(url, fileExt) {
 				// disable loading animation
 				document.getElementById("loading").style.display = "none";
 
-			}
-			);
-			break;
-
-		case "ifc":
-			loader = new IFCLoader();
-			loader.ifcManager.setWasmPath("wasm/");
-			loader.load(url, (ifcModel) => {
-				
-				// TO avoid Multi-root error when building bvh!
-				ifcModel.geometry.clearGroups(); 
-
-				mesh = new THREE.Mesh(ifcModel.geometry, material);
-
-				// move mesh barycenter to global origin
-				let center = getCenterPoint(mesh);
-				mesh.geometry.translate(-center.x, -center.y, -center.z);
-											
-				scene.add(mesh);
-
-				camera.position.set( 0, 40, -60 );
-				controls.target.set( 0, 0, 0 );
-				controls.update();
-				
-				newBVH();
-				
-				resetSamples();
-
-				// disable loading animation
-				document.getElementById("loading").style.display = "none";
 			}
 			);
 			break;
@@ -633,6 +620,8 @@ function resize() {
 
 function render() {
 
+	stats.begin();
+
 	// stats.update();
 	requestAnimationFrame( render );
 
@@ -706,6 +695,8 @@ function render() {
 	}
 
 	outputContainer.innerText = `samples: ${ samples }`;
+
+	stats.end();
 
 }
 

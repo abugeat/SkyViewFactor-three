@@ -1,30 +1,39 @@
-import Node from '../core/Node.js';
-import CameraNode from '../accessors/CameraNode.js';
-import ModelNode from '../accessors/ModelNode.js';
-import OperatorNode from '../math/OperatorNode.js';
-import PositionNode from '../accessors/PositionNode.js';
+import { addNodeClass } from '../core/Node.js';
+import TempNode from '../core/TempNode.js';
+import { cameraProjectionMatrix } from './CameraNode.js';
+import { modelViewMatrix } from './ModelNode.js';
+import { positionLocal } from './PositionNode.js';
+import { nodeProxy } from '../shadernode/ShaderNode.js';
+import { varying } from '../core/VaryingNode.js';
 
-class ModelViewProjectionNode extends Node {
+class ModelViewProjectionNode extends TempNode {
 
-	constructor( position = new PositionNode() ) {
+	constructor( positionNode = null ) {
 
 		super( 'vec4' );
 
-		this.position = position;
+		this.positionNode = positionNode;
 
 	}
 
-	generate( builder ) {
+	setup( builder ) {
 
-		const position = this.position;
+		if ( builder.shaderStage === 'fragment' ) {
 
-		const mvpMatrix = new OperatorNode( '*', new CameraNode( CameraNode.PROJECTION_MATRIX ), new ModelNode( ModelNode.VIEW_MATRIX ) );
-		const mvpNode = new OperatorNode( '*', mvpMatrix, position );
+			return varying( builder.context.mvp );
 
-		return mvpNode.build( builder );
+		}
+
+		const position = this.positionNode || positionLocal;
+
+		return cameraProjectionMatrix.mul( modelViewMatrix ).mul( position );
 
 	}
 
 }
 
 export default ModelViewProjectionNode;
+
+export const modelViewProjection = nodeProxy( ModelViewProjectionNode );
+
+addNodeClass( 'ModelViewProjectionNode', ModelViewProjectionNode );

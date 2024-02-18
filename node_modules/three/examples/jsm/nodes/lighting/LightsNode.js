@@ -1,7 +1,8 @@
 import Node from '../core/Node.js';
-import LightingNode from './LightingNode.js';
+import AnalyticLightNode from './AnalyticLightNode.js';
+import { nodeObject, nodeProxy, vec3 } from '../shadernode/ShaderNode.js';
 
-const references = new WeakMap();
+const LightNodes = new WeakMap();
 
 const sortLights = ( lights ) => {
 
@@ -15,6 +16,11 @@ class LightsNode extends Node {
 
 		super( 'vec3' );
 
+		this.totalDiffuseNode = vec3().temp( 'totalDiffuse' );
+		this.totalSpecularNode = vec3().temp( 'totalSpecular' );
+
+		this.outgoingLightNode = vec3().temp( 'outgoingLight' );
+
 		this.lightNodes = lightNodes;
 
 		this._hash = null;
@@ -27,33 +33,19 @@ class LightsNode extends Node {
 
 	}
 
-	construct( builder ) {
-
-		const lightNodes = this.lightNodes;
-
-		for ( const lightNode of lightNodes ) {
-
-			lightNode.build( builder );
-
-		}
-
-	}
-
-	getHash( builder ) {
+	getHash() {
 
 		if ( this._hash === null ) {
 
-			let hash = '';
+			const hash = [];
 
-			const lightNodes = this.lightNodes;
+			for ( const lightNode of this.lightNodes ) {
 
-			for ( const lightNode of lightNodes ) {
-
-				hash += lightNode.getHash( builder ) + ' ';
+				hash.push( lightNode.getHash() );
 
 			}
 
-			this._hash = hash;
+			this._hash = 'lights-' + hash.join( ',' );
 
 		}
 
@@ -61,13 +53,76 @@ class LightsNode extends Node {
 
 	}
 
-	getLightNodeByHash( hash ) {
+	setup( builder ) {
 
-		const lightNodes = this.lightNodes;
+		const context = builder.context;
+		const lightingModel = context.lightingModel;
 
-		for ( const lightNode of lightNodes ) {
+		let outgoingLightNode = this.outgoingLightNode;
 
-			if ( lightNode.light.uuid === hash ) {
+		if ( lightingModel ) {
+
+			const { lightNodes, totalDiffuseNode, totalSpecularNode } = this;
+
+			context.outgoingLight = outgoingLightNode;
+
+			const stack = builder.addStack();
+
+			//
+
+			lightingModel.start( context, stack, builder );
+
+			// lights
+
+			for ( const lightNode of lightNodes ) {
+
+				lightNode.build( builder );
+
+			}
+
+			//
+
+			lightingModel.indirectDiffuse( context, stack, builder );
+			lightingModel.indirectSpecular( context, stack, builder );
+			lightingModel.ambientOcclusion( context, stack, builder );
+
+			//
+
+			const { backdrop, backdropAlpha } = context;
+			const { directDiffuse, directSpecular, indirectDiffuse, indirectSpecular } = context.reflectedLight;
+
+			let totalDiffuse = directDiffuse.add( indirectDiffuse );
+
+			if ( backdrop !== null ) {
+
+				totalDiffuse = vec3( backdropAlpha !== null ? backdropAlpha.mix( totalDiffuse, backdrop ) : backdrop );
+
+			}
+
+			totalDiffuseNode.assign( totalDiffuse );
+			totalSpecularNode.assign( directSpecular.add( indirectSpecular ) );
+
+			outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
+
+			//
+
+			lightingModel.finish( context, stack, builder );
+
+			//
+
+			outgoingLightNode = outgoingLightNode.bypass( builder.removeStack() );
+
+		}
+
+		return outgoingLightNode;
+
+	}
+
+	_getLightNodeById( id ) {
+
+		for ( const lightNode of this.lightNodes ) {
+
+			if ( lightNode.isAnalyticLightNode && lightNode.light.id === id ) {
 
 				return lightNode;
 
@@ -79,7 +134,7 @@ class LightsNode extends Node {
 
 	}
 
-	fromLights( lights ) {
+	fromLights( lights = [] ) {
 
 		const lightNodes = [];
 
@@ -87,14 +142,14 @@ class LightsNode extends Node {
 
 		for ( const light of lights ) {
 
-			let lightNode = this.getLightNodeByHash( light.uuid );
+			let lightNode = this._getLightNodeById( light.id );
 
 			if ( lightNode === null ) {
 
 				const lightClass = light.constructor;
-				const lightNodeClass = references.has( lightClass ) ? references.get( lightClass ) : LightingNode;
+				const lightNodeClass = LightNodes.has( lightClass ) ? LightNodes.get( lightClass ) : AnalyticLightNode;
 
-				lightNode = new lightNodeClass( light );
+				lightNode = nodeObject( new lightNodeClass( light ) );
 
 			}
 
@@ -109,12 +164,25 @@ class LightsNode extends Node {
 
 	}
 
-	static setReference( lightClass, lightNodeClass ) {
-
-		references.set( lightClass, lightNodeClass );
-
-	}
-
 }
 
 export default LightsNode;
+
+export const lights = ( lights ) => nodeObject( new LightsNode().fromLights( lights ) );
+export const lightsNode = nodeProxy( LightsNode );
+
+export function addLightNode( lightClass, lightNodeClass ) {
+
+	if ( LightNodes.has( lightClass ) ) {
+
+		console.warn( `Redefinition of light node ${ lightNodeClass.type }` );
+		return;
+
+	}
+
+	if ( typeof lightClass !== 'function' ) throw new Error( `Light ${ lightClass.name } is not a class` );
+	if ( typeof lightNodeClass !== 'function' || ! lightNodeClass.type ) throw new Error( `Light node ${ lightNodeClass.type } is not a class` );
+
+	LightNodes.set( lightClass, lightNodeClass );
+
+}

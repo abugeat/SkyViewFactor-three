@@ -1,7 +1,7 @@
 {
   "name": "skyviewfactor-three",
   "version": "1.0.0",
-  "type":"module",
+  "type": "module",
   "description": "",
   "main": "bundle.js",
   "scripts": {
@@ -19,14 +19,13 @@
     "url": "https://github.com/abugeat/SkyViewFactor-three/issues"
   },
   "homepage": "https://github.com/abugeat/SkyViewFactor-three#readme",
-  "devDependencies": {
-    "@rollup/plugin-node-resolve": "^13.3.0",
-    "rollup": "^2.77.0"
-  },
   "dependencies": {
-    "stats.js": "^0.17.0",
-    "three": "^0.142.0",
-    "three-mesh-bvh": "^0.5.14",
-    "web-ifc-three": "^0.0.121"
+    "stats-js": "^1.0.1",
+    "three": "^0.161.0",
+    "three-mesh-bvh": "^0.7.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "rollup": "^4.12.0"
   }
 }
