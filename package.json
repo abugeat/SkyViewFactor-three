@@ -1,4 +1,24 @@
 {
+  "name": "skyviewfactor-three",
+  "version": "1.0.0",
+  "type":"module",
+  "description": "",
+  "main": "bundle.js",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abugeat/SkyViewFactor-three.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/abugeat/SkyViewFactor-three/issues"
+  },
+  "homepage": "https://github.com/abugeat/SkyViewFactor-three#readme",
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^13.3.0",
     "rollup": "^2.77.0"
